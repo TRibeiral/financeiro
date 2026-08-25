@@ -63,6 +63,8 @@ Transferências entre as contas de Thiago, transferências entre Thiago e Ana Cl
 
 Créditos genéricos, dividendos/JSCP, rendimentos automáticos e operações ou impostos ligados à B3 são preservados como `excluded`, mas também nunca aparecem em **Despesas** nem entram em qualquer total ou gráfico de gastos.
 
+Linhas informativas de extrato, como `SALDO ANTERIOR` e `SALDO TOTAL DISPONÍVEL DIA`, também são excluídas dos cálculos. Resgates de RDB/CDB são tratados como transferências internas e não contam como entradas.
+
 ## Verificação
 
 ```bash

@@ -226,6 +226,58 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     assert Ledger.filter_options().sources == ["cartão"]
   end
 
+  test "sorts expenses by date or value", %{conn: conn} do
+    transaction_fixture(%{
+      occurred_on: ~D[2026-08-01],
+      amount_cents: 30_000,
+      description: "Despesa antiga maior"
+    })
+
+    transaction_fixture(%{
+      occurred_on: ~D[2026-08-02],
+      amount_cents: 10_000,
+      description: "Despesa intermediária menor"
+    })
+
+    transaction_fixture(%{
+      occurred_on: ~D[2026-08-03],
+      amount_cents: 20_000,
+      description: "Despesa recente média"
+    })
+
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert_in_order(html, [
+      "Despesa recente média",
+      "Despesa intermediária menor",
+      "Despesa antiga maior"
+    ])
+
+    html = render_change(view, "filter", %{"filters" => %{"sort" => "date_asc"}})
+
+    assert_in_order(html, [
+      "Despesa antiga maior",
+      "Despesa intermediária menor",
+      "Despesa recente média"
+    ])
+
+    html = render_change(view, "filter", %{"filters" => %{"sort" => "value_desc"}})
+
+    assert_in_order(html, [
+      "Despesa antiga maior",
+      "Despesa recente média",
+      "Despesa intermediária menor"
+    ])
+
+    html = render_change(view, "filter", %{"filters" => %{"sort" => "value_asc"}})
+
+    assert_in_order(html, [
+      "Despesa intermediária menor",
+      "Despesa recente média",
+      "Despesa antiga maior"
+    ])
+  end
+
   test "separates income while refunds reduce the single expense total", %{conn: conn} do
     transaction_fixture()
 
@@ -340,5 +392,15 @@ defmodule FinanceiroWeb.FinanceLiveTest do
       )
 
     %Transaction{} |> Transaction.changeset(attrs) |> Repo.insert!()
+  end
+
+  defp assert_in_order(html, descriptions) do
+    positions =
+      Enum.map(descriptions, fn description ->
+        {position, _length} = :binary.match(html, description)
+        position
+      end)
+
+    assert positions == Enum.sort(positions)
   end
 end

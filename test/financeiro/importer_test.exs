@@ -31,6 +31,12 @@ defmodule Financeiro.ImporterTest do
     assert InternalTransfer.flow_type("COR IRRF OPER. B3 17/08", 168, "conta") == "excluded"
     assert InternalTransfer.flow_type("COR JSCP PETR4", -14_458, "conta") == "excluded"
     assert InternalTransfer.flow_type("Crédito em conta", -4_008, "conta") == "excluded"
+    assert InternalTransfer.flow_type("SALDO ANTERIOR", -396_793, "conta") == "excluded"
+
+    assert InternalTransfer.flow_type("SALDO TOTAL DISPONÃVEL DIA", -3_327_940, "conta") ==
+             "excluded"
+
+    assert InternalTransfer.flow_type("RESGATE CDB DI", -2_400_088, "conta") == "transfer"
 
     assert InternalTransfer.flow_type(
              "Transferência Recebida - BREX BRASIL TECNOLOGIA LTDA",

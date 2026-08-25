@@ -9,7 +9,7 @@ defmodule Financeiro.Ledger do
     Transaction
     |> where([t], t.flow_type in ["expense", "refund"])
     |> filter_query(filters)
-    |> order_by([t], desc: t.occurred_on, desc: t.id)
+    |> order_transactions(Map.get(filters, "sort"))
     |> limit(500)
     |> Repo.all()
   end
@@ -327,4 +327,16 @@ defmodule Financeiro.Ledger do
         query
     end)
   end
+
+  defp order_transactions(query, "date_asc"),
+    do: order_by(query, [t], asc: t.occurred_on, asc: t.id)
+
+  defp order_transactions(query, "value_desc"),
+    do: order_by(query, [t], desc: t.amount_cents, desc: t.occurred_on, desc: t.id)
+
+  defp order_transactions(query, "value_asc"),
+    do: order_by(query, [t], asc: t.amount_cents, desc: t.occurred_on, desc: t.id)
+
+  defp order_transactions(query, _date_desc),
+    do: order_by(query, [t], desc: t.occurred_on, desc: t.id)
 end

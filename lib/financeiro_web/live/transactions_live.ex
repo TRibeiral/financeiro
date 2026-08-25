@@ -14,7 +14,8 @@ defmodule FinanceiroWeb.TransactionsLive do
       "bank" => "all",
       "origin" => "all",
       "status" => "all",
-      "direction" => "spending"
+      "direction" => "spending",
+      "sort" => "date_desc"
     }
 
     {:ok, load(socket, filters)}
@@ -168,6 +169,20 @@ defmodule FinanceiroWeb.TransactionsLive do
           </option>
           <option value="expenses" selected={@filters["direction"] == "expenses"}>Só despesas</option>
           <option value="refunds" selected={@filters["direction"] == "refunds"}>Só estornos</option>
+        </select>
+        <select name="filters[sort]" aria-label="Ordenar despesas">
+          <option value="date_desc" selected={@filters["sort"] in [nil, "date_desc"]}>
+            Data · mais recentes
+          </option>
+          <option value="date_asc" selected={@filters["sort"] == "date_asc"}>
+            Data · mais antigas
+          </option>
+          <option value="value_desc" selected={@filters["sort"] == "value_desc"}>
+            Valor · maior primeiro
+          </option>
+          <option value="value_asc" selected={@filters["sort"] == "value_asc"}>
+            Valor · menor primeiro
+          </option>
         </select>
         <label class="date-filter">
           <span>De</span> <input type="date" name="filters[from]" value={@filters["from"]} />

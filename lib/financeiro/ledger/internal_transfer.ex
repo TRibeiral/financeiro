@@ -15,10 +15,13 @@ defmodule Financeiro.Ledger.InternalTransfer do
     "pagamento efetuado",
     "pagamento fatura",
     "fatura paga",
-    "resgate rdb"
+    "resgate rdb",
+    "resgate cdb"
   ]
 
   @excluded_movements [
+    "saldo anterior",
+    "saldo total disponavel dia",
     "credito em conta",
     "rend pago",
     "rendimento",
