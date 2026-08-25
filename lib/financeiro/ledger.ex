@@ -7,6 +7,7 @@ defmodule Financeiro.Ledger do
 
   def list_transactions(filters \\ %{}) do
     Transaction
+    |> where([t], t.flow_type in ["expense", "refund"])
     |> filter_query(filters)
     |> order_by([t], desc: t.occurred_on, desc: t.id)
     |> limit(500)
@@ -248,12 +249,14 @@ defmodule Financeiro.Ledger do
   end
 
   def filter_options do
+    expenses = from t in Transaction, where: t.flow_type in ["expense", "refund"]
+
     %{
-      owners: Repo.all(from t in Transaction, distinct: true, order_by: t.owner, select: t.owner),
-      banks: Repo.all(from t in Transaction, distinct: true, order_by: t.bank, select: t.bank),
+      owners: Repo.all(from t in expenses, distinct: true, order_by: t.owner, select: t.owner),
+      banks: Repo.all(from t in expenses, distinct: true, order_by: t.bank, select: t.bank),
       sources:
         Repo.all(
-          from t in Transaction,
+          from t in expenses,
             distinct: true,
             order_by: t.source_type,
             select: t.source_type

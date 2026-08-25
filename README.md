@@ -13,6 +13,8 @@ Abra [http://localhost:4000](http://localhost:4000). O SQLite fica em `financeir
 
 No ambiente de desenvolvimento, a pasta `../extratos` é verificada a cada 15 segundos. Também é possível importar explicitamente:
 
+Na tela **Importações**, arquivos CSV, XLSX e PDF podem ser soltos diretamente na área de upload. Eles são copiados com segurança para a pasta monitorada e importados automaticamente; arquivos existentes não são sobrescritos.
+
 ```bash
 mix financeiro.import ../extratos
 mix financeiro.import /caminho/arquivo.csv --owner "Ana Clara"
@@ -37,7 +39,7 @@ Só entram lançamentos a partir de `2026-08-01`. Cada arquivo tem um hash e cad
 
 ## Classificação
 
-As categorias são `Casa`, `Funcionarios`, `Mercado`, `Restaurante`, `Transporte`, `Saude`, `Extras`, `Filho`, `Viagem`, `Pet` e `Outros`.
+As categorias são `Casa`, `Funcionarios`, `Mercado`, `Restaurante`, `Transporte`, `Saude`, `Extras`, `Filho`, `Viagem`, `Pet`, `Projetos` e `Outros`.
 
 O classificador funciona em três camadas:
 
@@ -57,9 +59,9 @@ Estornos e reembolsos continuam na aba **Despesas**, recebem a categoria da comp
 
 Na aba **Análises**, o **Panorama** reúne o realizado e a projeção de fechamento do mês por categoria e no total. O cálculo usa o gasto líquido do primeiro dia até hoje, divide pelos dias corridos e multiplica pela quantidade de dias do mês; a data corrente segue o horário de São Paulo. A visão **Ritmo** empilha cada dia nas cores das categorias e marca estornos com hachura.
 
-Transferências entre as contas de Thiago, transferências entre Thiago e Ana Clara, pagamentos de fatura e movimentos internos de investimento são preservados na base como `transfer`, mas ficam fora da lista padrão, da fila de revisão e de todos os totais e gráficos. Use o filtro **Transferências** para consultá-los.
+Transferências entre as contas de Thiago, transferências entre Thiago e Ana Clara, pagamentos de fatura e movimentos internos de investimento são preservados na base como `transfer`, mas nunca aparecem em **Despesas** nem entram na fila de revisão, totais ou gráficos.
 
-Créditos genéricos, dividendos/JSCP, rendimentos automáticos e operações ou impostos ligados à B3 são preservados como `excluded` e também ficam fora da experiência padrão. O filtro **Créditos, rendimentos e B3** permite auditá-los sem misturá-los às finanças do dia a dia.
+Créditos genéricos, dividendos/JSCP, rendimentos automáticos e operações ou impostos ligados à B3 são preservados como `excluded`, mas também nunca aparecem em **Despesas** nem entram em qualquer total ou gráfico de gastos.
 
 ## Verificação
 

@@ -2,7 +2,7 @@ defmodule Financeiro.Ledger.Transaction do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @categories ~w(Casa Funcionarios Mercado Restaurante Transporte Saude Extras Filho Viagem Pet Outros)
+  @categories ~w(Casa Funcionarios Mercado Restaurante Transporte Saude Extras Filho Viagem Pet Projetos Outros)
   @review_statuses ~w(pending reviewed)
   @flow_types ~w(expense refund income transfer excluded)
 

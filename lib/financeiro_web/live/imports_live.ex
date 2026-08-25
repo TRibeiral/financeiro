@@ -4,7 +4,24 @@ defmodule FinanceiroWeb.ImportsLive do
   alias Financeiro.Ledger.LunaClassifier
 
   @impl true
-  def mount(_params, _session, socket), do: {:ok, reload(socket)}
+  def mount(_params, _session, socket) do
+    socket =
+      allow_upload(socket, :statements,
+        accept: ~w(.csv .xlsx .pdf),
+        max_entries: 10,
+        max_file_size: 30_000_000,
+        auto_upload: true,
+        progress: &handle_upload_progress/3
+      )
+
+    {:ok, reload(socket)}
+  end
+
+  @impl true
+  def handle_event("validate-upload", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel-upload", %{"ref" => ref}, socket),
+    do: {:noreply, cancel_upload(socket, :statements, ref)}
 
   @impl true
   def handle_event("scan", _params, socket) do
@@ -38,6 +55,51 @@ defmodule FinanceiroWeb.ImportsLive do
     {:noreply, socket |> put_flash(:info, message) |> reload()}
   end
 
+  defp handle_upload_progress(:statements, entry, socket) do
+    if entry.done? do
+      result =
+        consume_uploaded_entry(socket, entry, fn %{path: temp_path} ->
+          {:ok, Financeiro.Importer.store_and_import_upload(temp_path, entry.client_name)}
+        end)
+
+      {:noreply,
+       socket
+       |> put_upload_flash(entry.client_name, result)
+       |> reload()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp put_upload_flash(socket, filename, {:ok, %{import_result: {:ok, import}}}) do
+    put_flash(
+      socket,
+      :info,
+      "#{filename} movido para a pasta de extratos; #{import.inserted_count} novos lançamentos"
+    )
+  end
+
+  defp put_upload_flash(socket, filename, {:ok, %{import_result: {:skipped, _import}}}) do
+    put_flash(socket, :info, "#{filename} já estava na pasta e já havia sido importado")
+  end
+
+  defp put_upload_flash(socket, filename, {:ok, %{import_result: {:error, _, reason}}}) do
+    put_flash(socket, :error, "#{filename} foi movido, mas não pôde ser importado: #{reason}")
+  end
+
+  defp put_upload_flash(socket, filename, {:error, reason}) do
+    put_flash(socket, :error, "Não foi possível mover #{filename}: #{reason}")
+  end
+
+  defp put_upload_flash(socket, filename, other) do
+    put_flash(socket, :error, "Não foi possível importar #{filename}: #{inspect(other)}")
+  end
+
+  defp upload_error(:too_large), do: "arquivo maior que 30 MB"
+  defp upload_error(:not_accepted), do: "use um arquivo CSV, XLSX ou PDF"
+  defp upload_error(:too_many_files), do: "selecione no máximo 10 arquivos por vez"
+  defp upload_error(error), do: to_string(error)
+
   defp reload(socket),
     do:
       assign(socket,
@@ -69,12 +131,38 @@ defmodule FinanceiroWeb.ImportsLive do
           </button>
         </div>
       </div>
-      <section class="drop-zone">
-        <div class="folder-icon"><.icon name="hero-folder-arrow-down" class="size-8" /></div>
-        <div>
-          <span>Pasta monitorada a cada 15 segundos</span><strong>{@directory}</strong><small>CSV Nubank · XLSX Itaú cartão · PDF Itaú conta</small>
+      <form id="statement-upload" phx-change="validate-upload" class="upload-form">
+        <label class="drop-zone" phx-drop-target={@uploads.statements.ref}>
+          <.live_file_input
+            upload={@uploads.statements}
+            class="drop-input"
+          />
+          <div class="folder-icon"><.icon name="hero-folder-arrow-down" class="size-8" /></div>
+          <div>
+            <span>Solte os arquivos aqui ou clique para escolher</span><strong>{@directory}</strong><small>O arquivo será movido e importado automaticamente · CSV, XLSX ou PDF</small>
+          </div>
+        </label>
+
+        <div :if={@uploads.statements.entries != []} class="upload-queue">
+          <div :for={entry <- @uploads.statements.entries} class="upload-entry">
+            <div>
+              <strong>{entry.client_name}</strong>
+              <span>{entry.progress}%</span>
+            </div>
+            <progress value={entry.progress} max="100">{entry.progress}%</progress>
+            <button type="button" phx-click="cancel-upload" phx-value-ref={entry.ref}>
+              Cancelar
+            </button>
+            <small :for={error <- upload_errors(@uploads.statements, entry)}>
+              {upload_error(error)}
+            </small>
+          </div>
         </div>
-      </section>
+
+        <p :for={error <- upload_errors(@uploads.statements)} class="upload-error">
+          {upload_error(error)}
+        </p>
+      </form>
       <div class="import-command">
         <span>Codex da assinatura · {@luna_model}</span><code>mix financeiro.classify</code><code>mix financeiro.import ../extratos --owner "Nome"</code>
       </div>

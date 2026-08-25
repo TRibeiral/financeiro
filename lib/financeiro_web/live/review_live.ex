@@ -159,5 +159,6 @@ defmodule FinanceiroWeb.ReviewLive do
   defp category_icon("Filho"), do: "☺"
   defp category_icon("Viagem"), do: "⌁"
   defp category_icon("Pet"), do: "◇"
+  defp category_icon("Projetos"), do: "▦"
   defp category_icon(_), do: "•••"
 end

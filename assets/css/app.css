@@ -310,12 +310,25 @@ button, select { cursor: pointer; }
 .forecast-track i.actual { background: var(--category-color); }
 .forecast-note { margin: 15px 0 0; padding-top: 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; text-align: right; }
 
-.drop-zone { max-width: 1420px; margin: 0 auto 15px; padding: 26px; border: 1px dashed #bfc6bf; border-radius: 13px; display: flex; align-items: center; gap: 16px; background: #f7f8f3; }
+.upload-form { max-width: 1420px; margin: 0 auto 15px; }
+.drop-zone { position: relative; margin: 0; padding: 26px; border: 1px dashed #bfc6bf; border-radius: 13px; display: flex; align-items: center; gap: 16px; background: #f7f8f3; cursor: pointer; transition: .15s ease; overflow: hidden; }
+.drop-zone:hover { border-color: #778c7d; background: #f1f5ef; }
+.drop-zone:has(.drop-input:focus-visible) { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(37,60,51,.1); }
+.drop-input { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .folder-icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 12px; background: #e5ebe3; color: #536f5e; }
 .drop-zone > div:last-child { display: flex; flex-direction: column; gap: 3px; }
 .drop-zone span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
 .drop-zone strong { font: 500 17px ui-monospace, monospace; }
 .drop-zone small { color: #909690; font-size: 9px; }
+.upload-queue { margin-top: 8px; display: grid; gap: 6px; }
+.upload-entry { min-height: 50px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; display: grid; grid-template-columns: minmax(160px, 1fr) minmax(100px, 260px) auto; align-items: center; gap: 12px; background: white; }
+.upload-entry > div { min-width: 0; display: flex; justify-content: space-between; gap: 8px; }
+.upload-entry strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.upload-entry span, .upload-entry small { color: var(--muted); font-size: 8px; }
+.upload-entry progress { width: 100%; height: 6px; accent-color: var(--forest); }
+.upload-entry button { border: 0; background: transparent; color: #9a5c48; font-size: 8px; }
+.upload-entry small { grid-column: 1 / -1; color: #b85637; }
+.upload-error { margin: 7px 2px 0; color: #b85637; font-size: 9px; }
 .import-command { max-width: 1420px; margin: 0 auto 28px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 9px; }
 .import-command code { padding: 7px 10px; border-radius: 6px; background: #e9ebe6; color: #425048; }
 .imports-list { max-width: 1420px; margin: 0 auto; }
@@ -373,4 +386,6 @@ button, select { cursor: pointer; }
   .import-row { grid-template-columns: 35px 1fr 55px; }
   .import-numbers:nth-last-child(-n+2) { display: none; }
   .drop-zone strong { font-size: 10px; word-break: break-all; }
+  .upload-entry { grid-template-columns: 1fr auto; }
+  .upload-entry progress { grid-column: 1 / -1; grid-row: 2; }
 }

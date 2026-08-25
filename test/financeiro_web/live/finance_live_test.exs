@@ -2,6 +2,7 @@ defmodule FinanceiroWeb.FinanceLiveTest do
   use FinanceiroWeb.ConnCase
   import Phoenix.LiveViewTest
 
+  alias Financeiro.Ledger
   alias Financeiro.Repo
   alias Financeiro.Ledger.Transaction
 
@@ -18,6 +19,24 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     |> render_click()
 
     assert Repo.reload!(transaction).review_status == "reviewed"
+  end
+
+  test "offers and persists the Projetos category", %{conn: conn} do
+    transaction = transaction_fixture()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "form.category-form option[value=Projetos]", "Projetos")
+
+    view
+    |> form("form.category-form", %{
+      "transaction_id" => to_string(transaction.id),
+      "category" => "Projetos"
+    })
+    |> render_change()
+
+    saved = Repo.reload!(transaction)
+    assert saved.category == "Projetos"
+    assert saved.review_status == "pending"
   end
 
   test "saves a category without confirming and can confirm again after undo", %{conn: conn} do
@@ -155,7 +174,9 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     assert Repo.reload!(second).review_status == "pending"
   end
 
-  test "hides internal transfers by default and exposes them through the filter", %{conn: conn} do
+  test "never exposes transfers, income, credits or B3 on expenses or its totals", %{conn: conn} do
+    transaction_fixture()
+
     transaction_fixture(%{
       description: "PIX TRANSF Thiago",
       merchant_key: "transf thiago",
@@ -164,15 +185,6 @@ defmodule FinanceiroWeb.FinanceLiveTest do
       bank: "Itaú"
     })
 
-    {:ok, view, html} = live(conn, ~p"/")
-    refute html =~ "PIX TRANSF Thiago"
-
-    html = render_change(view, "filter", %{"filters" => %{"direction" => "transfers"}})
-    assert html =~ "PIX TRANSF Thiago"
-    assert html =~ "Itaú · transferência"
-  end
-
-  test "hides yields and stock movements by default and exposes the audit filter", %{conn: conn} do
     transaction_fixture(%{
       description: "COR JSCP PETR4",
       merchant_key: "cor jscp petr",
@@ -182,12 +194,36 @@ defmodule FinanceiroWeb.FinanceLiveTest do
       source_type: "conta"
     })
 
-    {:ok, view, html} = live(conn, ~p"/")
-    refute html =~ "COR JSCP PETR4"
+    transaction_fixture(%{
+      description: "Salário recebido",
+      merchant_key: "salario recebido",
+      flow_type: "income",
+      amount_cents: -500_000,
+      source_type: "conta"
+    })
 
-    html = render_change(view, "filter", %{"filters" => %{"direction" => "excluded"}})
-    assert html =~ "COR JSCP PETR4"
-    assert html =~ "Itaú · crédito / investimento"
+    {:ok, view, html} = live(conn, ~p"/")
+    assert html =~ "Oba Hortifruti"
+    assert html =~ "R$ 25,50"
+    refute html =~ "PIX TRANSF Thiago"
+    refute html =~ "COR JSCP PETR4"
+    refute html =~ "Salário recebido"
+    refute has_element?(view, "option[value=transfers]")
+    refute has_element?(view, "option[value=excluded]")
+    refute has_element?(view, "option[value=transfer]")
+
+    for forbidden <- ~w(transfers excluded credits) do
+      forged_html = render_change(view, "filter", %{"filters" => %{"direction" => forbidden}})
+      refute forged_html =~ "PIX TRANSF Thiago"
+      refute forged_html =~ "COR JSCP PETR4"
+      refute forged_html =~ "Salário recebido"
+    end
+
+    assert Ledger.totals() == %{expenses: 2550, count: 1, pending: 1}
+    assert Ledger.list_transactions(%{}) |> Enum.map(& &1.flow_type) == ["expense"]
+    assert Ledger.spending_by(:category) == [{"Mercado", 2550}]
+    assert Ledger.filter_options().banks == ["Nubank"]
+    assert Ledger.filter_options().sources == ["cartão"]
   end
 
   test "separates income while refunds reduce the single expense total", %{conn: conn} do
@@ -275,7 +311,7 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     assert html =~ "#{today.day} dias corridos"
     assert has_element?(view, "#forecast-actual", "R$ 32,00")
     assert has_element?(view, "#forecast-total", FinanceiroWeb.Format.money(expected_total))
-    assert length(Regex.scan(~r/class="forecast-row"/, html)) == 11
+    assert length(Regex.scan(~r/class="forecast-row"/, html)) == length(Transaction.categories())
     assert html =~ "--category-color: #16A34A"
     assert html =~ "--category-color: #2563EB"
   end

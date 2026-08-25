@@ -312,6 +312,7 @@ defmodule FinanceiroWeb.InsightsLive do
   defp category_color("Filho"), do: {"#EAB308", "#28200A"}
   defp category_color("Viagem"), do: {"#0D9488", "#FFFFFF"}
   defp category_color("Pet"), do: {"#92400E", "#FFFFFF"}
+  defp category_color("Projetos"), do: {"#4F46E5", "#FFFFFF"}
   defp category_color(_), do: {"#64748B", "#FFFFFF"}
 
   defp initials(name) do

@@ -7,6 +7,33 @@ defmodule Financeiro.Importer do
 
   @extensions ~w(.csv .xlsx .pdf)
 
+  def store_and_import_upload(temp_path, client_name, opts \\ []) do
+    directory =
+      Keyword.get(opts, :directory, Application.fetch_env!(:financeiro, :statements_dir))
+
+    filename = client_name |> Path.basename() |> String.trim()
+    extension = filename |> Path.extname() |> String.downcase()
+
+    cond do
+      filename in ["", "."] ->
+        {:error, "nome de arquivo inválido"}
+
+      extension not in @extensions ->
+        {:error, "formato não suportado: #{extension}"}
+
+      true ->
+        with :ok <- File.mkdir_p(directory),
+             {:ok, destination, storage_status} <- store_file(temp_path, directory, filename) do
+          {:ok,
+           %{
+             path: destination,
+             storage_status: storage_status,
+             import_result: import_file(destination, opts)
+           }}
+        end
+    end
+  end
+
   def import(path, opts \\ []) do
     cond do
       File.dir?(path) -> import_directory(path, opts)
@@ -173,5 +200,53 @@ defmodule Financeiro.Importer do
           acc
       end
     )
+  end
+
+  defp store_file(temp_path, directory, filename) do
+    destination = Path.join(directory, filename)
+
+    cond do
+      not File.exists?(destination) ->
+        copy_upload(temp_path, destination, :stored)
+
+      same_contents?(temp_path, destination) ->
+        {:ok, destination, :already_present}
+
+      true ->
+        copy_upload(temp_path, available_destination(directory, filename), :renamed)
+    end
+  end
+
+  defp copy_upload(source, destination, status) do
+    case File.cp(source, destination) do
+      :ok ->
+        {:ok, destination, status}
+
+      {:error, reason} ->
+        {:error, "não foi possível mover o arquivo: #{:file.format_error(reason)}"}
+    end
+  end
+
+  defp available_destination(directory, filename) do
+    extension = Path.extname(filename)
+    basename = Path.basename(filename, extension)
+
+    2
+    |> Stream.iterate(&(&1 + 1))
+    |> Enum.find_value(fn suffix ->
+      candidate = Path.join(directory, "#{basename} (#{suffix})#{extension}")
+      if File.exists?(candidate), do: nil, else: candidate
+    end)
+  end
+
+  defp same_contents?(left, right) do
+    with {:ok, %{size: size}} <- File.stat(left),
+         {:ok, %{size: ^size}} <- File.stat(right),
+         {:ok, left_contents} <- File.read(left),
+         {:ok, right_contents} <- File.read(right) do
+      left_contents == right_contents
+    else
+      _ -> false
+    end
   end
 end

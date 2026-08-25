@@ -68,4 +68,37 @@ defmodule Financeiro.ImporterTest do
     assert {:skipped, _} = Importer.import_file(path, owner: "Teste")
     assert Ledger.transaction_count() == 1
   end
+
+  test "stores uploads without overwriting files with the same name" do
+    root =
+      Path.join(System.tmp_dir!(), "financeiro-storage-#{System.unique_integer([:positive])}")
+
+    directory = Path.join(root, "extratos")
+    File.mkdir_p!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
+
+    first_source = Path.join(root, "primeiro.csv")
+    second_source = Path.join(root, "segundo.csv")
+
+    File.write!(first_source, """
+    Data,Valor,Identificador,Descrição
+    25/08/2026,-10.00,storage-1,Primeiro arquivo
+    """)
+
+    File.write!(second_source, """
+    Data,Valor,Identificador,Descrição
+    25/08/2026,-20.00,storage-2,Segundo arquivo
+    """)
+
+    assert {:ok, %{path: first_path, storage_status: :stored}} =
+             Importer.store_and_import_upload(first_source, "extrato.csv", directory: directory)
+
+    assert {:ok, %{path: second_path, storage_status: :renamed}} =
+             Importer.store_and_import_upload(second_source, "extrato.csv", directory: directory)
+
+    assert Path.basename(first_path) == "extrato.csv"
+    assert Path.basename(second_path) == "extrato (2).csv"
+    assert File.read!(first_path) != File.read!(second_path)
+    assert Ledger.transaction_count() == 2
+  end
 end

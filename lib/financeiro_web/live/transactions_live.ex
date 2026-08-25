@@ -147,9 +147,6 @@ defmodule FinanceiroWeb.TransactionsLive do
         </select>
         <select name="filters[origin]">
           <option value="all">Todas as origens</option>
-          <option value="transfer" selected={@filters["origin"] == "transfer"}>
-            Transferência
-          </option>
           <option
             :for={source <- @options.sources}
             value={source}
@@ -171,12 +168,6 @@ defmodule FinanceiroWeb.TransactionsLive do
           </option>
           <option value="expenses" selected={@filters["direction"] == "expenses"}>Só despesas</option>
           <option value="refunds" selected={@filters["direction"] == "refunds"}>Só estornos</option>
-          <option value="transfers" selected={@filters["direction"] == "transfers"}>
-            Transferências
-          </option>
-          <option value="excluded" selected={@filters["direction"] == "excluded"}>
-            Créditos, rendimentos e B3
-          </option>
         </select>
         <label class="date-filter">
           <span>De</span> <input type="date" name="filters[from]" value={@filters["from"]} />
@@ -301,12 +292,7 @@ defmodule FinanceiroWeb.TransactionsLive do
 
   defp flow_label("expense"), do: "despesa"
   defp flow_label("refund"), do: "estorno"
-  defp flow_label("income"), do: "entrada"
-  defp flow_label("transfer"), do: "transferência"
-  defp flow_label("excluded"), do: "movimento excluído"
 
-  defp origin_label(%{flow_type: "transfer"}), do: "transferência"
-  defp origin_label(%{flow_type: "excluded"}), do: "crédito / investimento"
   defp origin_label(%{source_type: source}), do: source
 
   defp undo_message(1), do: "Última confirmação desfeita"
