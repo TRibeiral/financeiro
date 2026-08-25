@@ -1,0 +1,308 @@
+defmodule FinanceiroWeb.FinanceLiveTest do
+  use FinanceiroWeb.ConnCase
+  import Phoenix.LiveViewTest
+
+  alias Financeiro.Repo
+  alias Financeiro.Ledger.Transaction
+
+  test "lists and confirms a transaction", %{conn: conn} do
+    transaction = transaction_fixture()
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert html =~ "Oba Hortifruti"
+    assert html =~ "R$ 25,50"
+    assert html =~ "Nubank · cartão"
+
+    view
+    |> element("button[phx-click=review][phx-value-id='#{transaction.id}']")
+    |> render_click()
+
+    assert Repo.reload!(transaction).review_status == "reviewed"
+  end
+
+  test "saves a category without confirming and can confirm again after undo", %{conn: conn} do
+    transaction = transaction_fixture()
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    html =
+      view
+      |> form("form.category-form", %{
+        "transaction_id" => to_string(transaction.id),
+        "category" => "Casa"
+      })
+      |> render_change()
+
+    changed = Repo.reload!(transaction)
+    assert changed.category == "Casa"
+    assert changed.review_status == "pending"
+    assert changed.classification_source == "manual"
+    assert changed.undo_action_id
+    assert html =~ "salva no banco de dados"
+    assert html =~ "salvo · falta confirmar"
+
+    view
+    |> element("button[phx-click=review][phx-value-id='#{transaction.id}']")
+    |> render_click()
+
+    confirmed = Repo.reload!(transaction)
+    assert confirmed.category == "Casa"
+    assert confirmed.review_status == "reviewed"
+
+    view
+    |> element("button[phx-click=undo_or_reopen][phx-value-id='#{transaction.id}']")
+    |> render_click()
+
+    restored = Repo.reload!(transaction)
+    assert restored.category == "Casa"
+    assert restored.review_status == "pending"
+    assert restored.classification_source == "manual"
+    assert restored.classification_confidence == 100
+    refute restored.undo_action_id
+
+    view
+    |> element("button[phx-click=review][phx-value-id='#{transaction.id}']")
+    |> render_click()
+
+    assert Repo.reload!(transaction).review_status == "reviewed"
+  end
+
+  test "changes an already confirmed category in the database and can undo it", %{conn: conn} do
+    transaction =
+      transaction_fixture(%{
+        review_status: "reviewed",
+        classification_source: "manual",
+        classification_confidence: 100
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    html =
+      view
+      |> form("form.category-form", %{
+        "transaction_id" => to_string(transaction.id),
+        "category" => "Casa"
+      })
+      |> render_change()
+
+    saved = Repo.reload!(transaction)
+    assert saved.category == "Casa"
+    assert saved.review_status == "reviewed"
+    assert saved.classification_source == "manual"
+    assert html =~ "salva no banco de dados"
+    assert html =~ "salvo no banco"
+
+    view
+    |> element("button[phx-click=undo_or_reopen][phx-value-id='#{transaction.id}']")
+    |> render_click()
+
+    restored = Repo.reload!(transaction)
+    assert restored.category == "Mercado"
+    assert restored.review_status == "reviewed"
+  end
+
+  test "reopens legacy confirmed transactions and confirms them again", %{conn: conn} do
+    transaction =
+      transaction_fixture(%{
+        review_status: "reviewed",
+        classification_source: "manual",
+        classification_confidence: 100
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view
+    |> element("button[phx-click=undo_or_reopen][phx-value-id='#{transaction.id}']")
+    |> render_click()
+
+    reopened = Repo.reload!(transaction)
+    assert reopened.category == "Mercado"
+    assert reopened.review_status == "pending"
+
+    view
+    |> element("button[phx-click=review][phx-value-id='#{transaction.id}']")
+    |> render_click()
+
+    assert Repo.reload!(transaction).review_status == "reviewed"
+  end
+
+  test "review queue changes category and confirms", %{conn: conn} do
+    transaction_fixture()
+    {:ok, view, html} = live(conn, ~p"/review")
+    assert html =~ "Oba Hortifruti"
+
+    view |> element("button[phx-value-category=Casa]") |> render_click()
+    view |> element("button[phx-click=approve]") |> render_click()
+
+    assert render(view) =~ "Tudo revisado"
+  end
+
+  test "undoes confirm-similar as one grouped action", %{conn: conn} do
+    first = transaction_fixture()
+    second = transaction_fixture(%{fingerprint: "similar-#{System.unique_integer([:positive])}"})
+
+    {:ok, view, _html} = live(conn, ~p"/review")
+    view |> element("button[phx-value-category=Casa]") |> render_click()
+    view |> element("button[phx-click=approve_similar]") |> render_click()
+
+    assert Repo.reload!(first).category == "Casa"
+    assert Repo.reload!(second).review_status == "reviewed"
+
+    view |> element("button[phx-click=undo]") |> render_click()
+
+    assert Repo.reload!(first).category == "Mercado"
+    assert Repo.reload!(first).review_status == "pending"
+    assert Repo.reload!(second).category == "Mercado"
+    assert Repo.reload!(second).review_status == "pending"
+  end
+
+  test "hides internal transfers by default and exposes them through the filter", %{conn: conn} do
+    transaction_fixture(%{
+      description: "PIX TRANSF Thiago",
+      merchant_key: "transf thiago",
+      flow_type: "transfer",
+      amount_cents: 300_000,
+      bank: "Itaú"
+    })
+
+    {:ok, view, html} = live(conn, ~p"/")
+    refute html =~ "PIX TRANSF Thiago"
+
+    html = render_change(view, "filter", %{"filters" => %{"direction" => "transfers"}})
+    assert html =~ "PIX TRANSF Thiago"
+    assert html =~ "Itaú · transferência"
+  end
+
+  test "hides yields and stock movements by default and exposes the audit filter", %{conn: conn} do
+    transaction_fixture(%{
+      description: "COR JSCP PETR4",
+      merchant_key: "cor jscp petr",
+      flow_type: "excluded",
+      amount_cents: -14_458,
+      bank: "Itaú",
+      source_type: "conta"
+    })
+
+    {:ok, view, html} = live(conn, ~p"/")
+    refute html =~ "COR JSCP PETR4"
+
+    html = render_change(view, "filter", %{"filters" => %{"direction" => "excluded"}})
+    assert html =~ "COR JSCP PETR4"
+    assert html =~ "Itaú · crédito / investimento"
+  end
+
+  test "separates income while refunds reduce the single expense total", %{conn: conn} do
+    transaction_fixture()
+
+    transaction_fixture(%{
+      description: "Estorno Oba Hortifruti",
+      merchant_key: "estorno oba hortifruti",
+      flow_type: "refund",
+      amount_cents: -500
+    })
+
+    transaction_fixture(%{
+      description: "Salário recebido",
+      merchant_key: "salario recebido",
+      flow_type: "income",
+      amount_cents: -10_000,
+      source_type: "conta"
+    })
+
+    {:ok, _expenses_view, expenses_html} = live(conn, ~p"/")
+    assert expenses_html =~ "Oba Hortifruti"
+    assert expenses_html =~ "Estorno Oba Hortifruti"
+    refute expenses_html =~ "Salário recebido"
+    assert expenses_html =~ "R$ 20,50"
+
+    {:ok, income_view, income_html} = live(conn, ~p"/income")
+    assert income_html =~ "Salário recebido"
+    refute income_html =~ "Estorno Oba Hortifruti"
+    refute has_element?(income_view, "th", "Categoria")
+  end
+
+  test "switches from the joined panorama to category-segmented daily rhythm", %{conn: conn} do
+    transaction_fixture(%{category: "Mercado"})
+    transaction_fixture(%{category: "Casa", amount_cents: 1800})
+
+    transaction_fixture(%{
+      category: "Mercado",
+      amount_cents: -300,
+      flow_type: "refund"
+    })
+
+    {:ok, view, html} = live(conn, ~p"/insights")
+    assert html =~ "Realizado e projeção"
+    assert has_element?(view, "#forecast-total")
+    refute has_element?(view, "button[phx-value-mode=mapa]")
+    refute has_element?(view, "button[phx-value-mode=projecao]")
+
+    rhythm_html = view |> element("button[phx-value-mode=ritmo]") |> render_click()
+    assert rhythm_html =~ "Ritmo diário"
+    assert has_element?(view, ".day-stack i[data-category=Mercado]")
+    assert has_element?(view, ".day-stack i[data-category=Casa]")
+    assert has_element?(view, ".day-stack i.refund")
+  end
+
+  test "forecasts the current month by calendar-day average for every category", %{conn: conn} do
+    today =
+      DateTime.utc_now()
+      |> DateTime.add(-3 * 60 * 60, :second)
+      |> DateTime.to_date()
+
+    days_in_month = Date.end_of_month(today).day
+
+    transaction_fixture(%{occurred_on: today, amount_cents: 2400, category: "Mercado"})
+    transaction_fixture(%{occurred_on: today, amount_cents: 1200, category: "Casa"})
+
+    transaction_fixture(%{
+      occurred_on: today,
+      amount_cents: -400,
+      category: "Mercado",
+      flow_type: "refund"
+    })
+
+    transaction_fixture(%{
+      occurred_on: Date.add(Date.beginning_of_month(today), -1),
+      amount_cents: 99_999,
+      category: "Extras"
+    })
+
+    {:ok, view, html} = live(conn, ~p"/insights")
+
+    expected_total = round(3200 * days_in_month / today.day)
+
+    assert html =~ "Realizado e projeção"
+    assert html =~ "#{today.day} dias corridos"
+    assert has_element?(view, "#forecast-actual", "R$ 32,00")
+    assert has_element?(view, "#forecast-total", FinanceiroWeb.Format.money(expected_total))
+    assert length(Regex.scan(~r/class="forecast-row"/, html)) == 11
+    assert html =~ "--category-color: #16A34A"
+    assert html =~ "--category-color: #2563EB"
+  end
+
+  defp transaction_fixture(overrides \\ %{}) do
+    attrs =
+      Map.merge(
+        %{
+          occurred_on: ~D[2026-08-01],
+          amount_cents: 2550,
+          description: "Oba Hortifruti",
+          merchant_key: "oba hortifruti",
+          category: "Mercado",
+          classification_source: "rule",
+          classification_confidence: 82,
+          review_status: "pending",
+          bank: "Nubank",
+          owner: "Thiago",
+          account_ref: "Cartão",
+          source_type: "cartão",
+          source_file: "teste.csv",
+          fingerprint: "fixture-#{System.unique_integer([:positive])}",
+          raw_data: %{}
+        },
+        overrides
+      )
+
+    %Transaction{} |> Transaction.changeset(attrs) |> Repo.insert!()
+  end
+end

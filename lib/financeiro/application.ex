@@ -7,23 +7,35 @@ defmodule Financeiro.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      FinanceiroWeb.Telemetry,
-      Financeiro.Repo,
-      {Ecto.Migrator,
-       repos: Application.fetch_env!(:financeiro, :ecto_repos), skip: skip_migrations?()},
-      {DNSCluster, query: Application.get_env(:financeiro, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: Financeiro.PubSub},
-      # Start a worker by calling: Financeiro.Worker.start_link(arg)
-      # {Financeiro.Worker, arg},
-      # Start to serve requests, typically the last entry
-      FinanceiroWeb.Endpoint
-    ]
+    children =
+      [
+        FinanceiroWeb.Telemetry,
+        Financeiro.Repo,
+        {Ecto.Migrator,
+         repos: Application.fetch_env!(:financeiro, :ecto_repos), skip: skip_migrations?()},
+        {DNSCluster, query: Application.get_env(:financeiro, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: Financeiro.PubSub},
+        # Start a worker by calling: Financeiro.Worker.start_link(arg)
+        # {Financeiro.Worker, arg},
+        # Start to serve requests, typically the last entry
+        FinanceiroWeb.Endpoint
+      ] ++ watcher_children()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Financeiro.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp watcher_children do
+    if Application.get_env(:financeiro, :watch_statements, false) do
+      [
+        {Financeiro.ImportWatcher,
+         directory: Application.fetch_env!(:financeiro, :statements_dir)}
+      ]
+    else
+      []
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration

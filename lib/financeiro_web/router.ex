@@ -17,7 +17,11 @@ defmodule FinanceiroWeb.Router do
   scope "/", FinanceiroWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", TransactionsLive
+    live "/income", IncomeLive
+    live "/review", ReviewLive
+    live "/insights", InsightsLive
+    live "/imports", ImportsLive
   end
 
   # Other scopes may use custom stacks.
