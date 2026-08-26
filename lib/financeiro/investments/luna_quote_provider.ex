@@ -1,18 +1,57 @@
 defmodule Financeiro.Investments.LunaQuoteProvider do
   @moduledoc "Fetches current B3 quotes with Codex Luna through the user's ChatGPT sign-in."
 
-  @model "gpt-5.6-luna"
+  alias Financeiro.CodexRunner
 
   def fetch_quotes([]), do: {:ok, []}
 
-  def fetch_quotes(tickers) do
-    codex = Application.get_env(:financeiro, :codex_executable, "codex")
+  def fetch_quotes(tickers), do: fetch_quotes(tickers, [])
+
+  def fetch_quotes([], _opts), do: {:ok, []}
+
+  def fetch_quotes(tickers, opts) do
     schema = Application.app_dir(:financeiro, "priv/stock_quotes.schema.json")
+    runner = Keyword.get(opts, :runner, Application.fetch_env!(:financeiro, :codex_runner))
+    timeout_seconds = Keyword.get(opts, :timeout_seconds, 180)
+    batch_size = Keyword.get(opts, :batch_size, 10)
+    batches = Enum.chunk_every(tickers, batch_size)
 
-    output =
-      Path.join(System.tmp_dir!(), "financeiro-quotes-#{System.unique_integer([:positive])}.json")
+    result =
+      case batches do
+        [batch] ->
+          fetch_batch(batch, runner, schema, timeout_seconds)
 
-    prompt = """
+        batches ->
+          batches
+          |> Task.async_stream(
+            &fetch_batch(&1, runner, schema, timeout_seconds),
+            max_concurrency: Keyword.get(opts, :max_concurrency, 3),
+            ordered: false,
+            timeout: (timeout_seconds + 5) * 1_000,
+            on_timeout: :kill_task
+          )
+          |> collect_batches()
+      end
+
+    with {:ok, quotes} <- result,
+         {:ok, normalized} <- decode_output(quotes, tickers) do
+      {:ok, normalized}
+    end
+  end
+
+  defp fetch_batch(tickers, runner, schema, timeout_seconds) do
+    prompt = prompt(tickers)
+
+    runner.run(prompt,
+      output_schema: schema,
+      output_key: "quotes",
+      web_search: true,
+      timeout_seconds: timeout_seconds
+    )
+  end
+
+  defp prompt(tickers) do
+    """
     Pesquise na web a cotação mais recente disponível, em reais, de cada ação da B3 abaixo:
     #{Enum.join(tickers, ", ")}.
 
@@ -23,62 +62,23 @@ defmodule Financeiro.Investments.LunaQuoteProvider do
     - Em source, informe de forma curta o provedor consultado e se é tempo real ou fechamento.
     - Responda somente no JSON Schema fornecido.
     """
-
-    args = [
-      "exec",
-      "--model",
-      @model,
-      "--sandbox",
-      "read-only",
-      "--ephemeral",
-      "--skip-git-repo-check",
-      "--color",
-      "never",
-      "--output-schema",
-      schema,
-      "--output-last-message",
-      output,
-      "-c",
-      ~s(forced_login_method="chatgpt"),
-      "-C",
-      System.tmp_dir!(),
-      prompt
-    ]
-
-    try do
-      timeout = System.find_executable("timeout")
-
-      {command, command_args} =
-        if timeout, do: {timeout, ["180s", codex | args]}, else: {codex, args}
-
-      shell = System.find_executable("sh") || "/bin/sh"
-
-      case System.cmd(
-             shell,
-             ["-c", ~s(exec "$@" </dev/null), "financeiro-quotes", command | command_args],
-             stderr_to_stdout: true,
-             env: [{"OPENAI_API_KEY", nil}],
-             into: ""
-           ) do
-        {_log, 0} -> decode_output(output, tickers)
-        {log, status} -> {:error, "Luna terminou com status #{status}: #{compact(log)}"}
-      end
-    rescue
-      error in ErlangError ->
-        {:error, "não foi possível executar o Codex CLI: #{Exception.message(error)}"}
-    after
-      File.rm(output)
-    end
   end
 
-  def model, do: @model
+  defp collect_batches(results) do
+    Enum.reduce_while(results, {:ok, []}, fn
+      {:ok, {:ok, quotes}}, {:ok, acc} -> {:cont, {:ok, quotes ++ acc}}
+      {:ok, {:error, reason}}, _acc -> {:halt, {:error, reason}}
+      {:exit, reason}, _acc -> {:halt, {:error, "lote de cotações falhou: #{inspect(reason)}"}}
+    end)
+  end
 
-  defp decode_output(path, expected_tickers) do
+  def model, do: CodexRunner.model()
+
+  defp decode_output(quotes, expected_tickers) do
     expected = MapSet.new(expected_tickers)
 
-    with {:ok, body} <- File.read(path),
-         {:ok, %{"quotes" => quotes}} when is_list(quotes) <- Jason.decode(body),
-         {:ok, normalized} <- normalize_quotes(quotes),
+    with {:ok, normalized} <- normalize_quotes(quotes),
+         true <- length(normalized) == MapSet.size(expected),
          true <- MapSet.new(Enum.map(normalized, & &1.ticker)) == expected do
       {:ok, normalized}
     else
@@ -103,7 +103,4 @@ defmodule Financeiro.Investments.LunaQuoteProvider do
       error -> error
     end
   end
-
-  defp compact(text),
-    do: text |> String.replace(~r/\s+/, " ") |> String.trim() |> String.slice(0, 500)
 end

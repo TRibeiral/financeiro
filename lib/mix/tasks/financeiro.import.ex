@@ -18,8 +18,8 @@ defmodule Mix.Tasks.Financeiro.Import do
         Application.put_env(:financeiro, :watch_statements, false)
         Mix.Task.run("app.start")
 
-        result =
-          Financeiro.Importer.import(path, owner: opts[:owner] || "Thiago Carneiro Ribeiral")
+        import_opts = if opts[:owner], do: [owner: opts[:owner]], else: []
+        result = Financeiro.Importer.import(path, import_opts)
 
         Mix.shell().info(inspect(result, pretty: true))
 

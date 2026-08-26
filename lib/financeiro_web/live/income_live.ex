@@ -2,32 +2,33 @@ defmodule FinanceiroWeb.IncomeLive do
   use FinanceiroWeb, :live_view
 
   alias Financeiro.Ledger
+  alias Financeiro.MonthPeriod
   alias FinanceiroWeb.Format
 
   @impl true
   def mount(_params, _session, socket) do
-    filters = %{
-      "from" => "2026-08-01",
-      "to" => "",
-      "search" => "",
-      "owner" => "all",
-      "bank" => "all",
-      "origin" => "all"
-    }
+    filters =
+      Map.merge(MonthPeriod.filters(), %{
+        "search" => "",
+        "owner" => "all",
+        "bank" => "all",
+        "origin" => "all"
+      })
 
-    {:ok, load(socket, filters)}
+    {:ok, load(socket, filters, MonthPeriod.current_bounds())}
   end
 
   @impl true
   def handle_event("filter", %{"filters" => filters}, socket),
-    do: {:noreply, load(socket, filters)}
+    do: {:noreply, load(socket, filters, socket.assigns.period)}
 
-  defp load(socket, filters) do
+  defp load(socket, filters, period) do
     assign(socket,
       page_title: "Entradas",
+      period: period,
       filters: filters,
       transactions: Ledger.list_income(filters),
-      totals: Ledger.income_totals(),
+      totals: Ledger.income_totals(filters),
       options: Ledger.income_filter_options(),
       pending: Ledger.pending_count()
     )
@@ -39,7 +40,11 @@ defmodule FinanceiroWeb.IncomeLive do
     <Layouts.app flash={@flash} active="income" pending={@pending}>
       <div class="page-heading">
         <div>
-          <p class="eyebrow">Recebimentos reais</p>
+          <p class="eyebrow">
+            Recebimentos · {Format.short_date(elem(@period, 0))} a {Format.short_date(
+              elem(@period, 1)
+            )}
+          </p>
           <h1>Entradas</h1>
           <p>Salários e depósitos recebidos, sem categorias de despesa.</p>
         </div>

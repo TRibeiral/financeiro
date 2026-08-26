@@ -68,7 +68,36 @@ stocks = [
   }
 ]
 
-Enum.each(stocks, fn attrs ->
+radar_stocks = [
+  %{name: "Petz", ticker: "PETZ3", shares: 0, tier: 2, checked_on: ~D[2026-08-15]},
+  %{name: "Positivo", ticker: "POSI3", shares: 0, tier: 2, checked_on: ~D[2026-08-15]},
+  %{name: "Brisanet", ticker: "BRST3", shares: 0, tier: 2, checked_on: ~D[2026-08-16]},
+  %{name: "São Martinho", ticker: "SMTO3", shares: 0, tier: 1, checked_on: ~D[2026-08-15]},
+  %{name: "Rede D'Or", ticker: "RDOR3", shares: 0, tier: 1, checked_on: ~D[2026-08-15]},
+  %{name: "Rumo", ticker: "RAIL3", shares: 0, tier: 1, checked_on: ~D[2026-08-15]},
+  %{name: "Assaí", ticker: "ASAI3", shares: 0, tier: 1, checked_on: ~D[2026-08-11]},
+  %{name: "Frasle Mobility", ticker: "FRAS3", shares: 0, tier: 1, checked_on: ~D[2026-08-15]},
+  %{name: "Vamos", ticker: "VAMO3", shares: 0, tier: 1, checked_on: ~D[2026-08-15]},
+  %{name: "Eneva", ticker: "ENEV3", shares: 0, tier: 0, checked_on: ~D[2026-08-15]},
+  %{name: "Vulcabras", ticker: "VULC3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "Raia Drogasil", ticker: "RADL3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "Lavvi", ticker: "LAVV3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "OceanPact", ticker: "OPCT3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "Tupy", ticker: "TUPY3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "Embraer", ticker: "EMBR3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "WEG", ticker: "WEGE3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "Grupo Mateus", ticker: "GMAT3", shares: 0, tier: 0, checked_on: ~D[2026-08-08]},
+  %{name: "Vivara", ticker: "VIVA3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "BrasilAgro", ticker: "AGRO3", shares: 0, tier: 0, checked_on: ~D[2026-08-15]},
+  %{name: "Hypera", ticker: "HYPE3", shares: 0, tier: 0, checked_on: ~D[2026-08-11]},
+  %{name: "Bradesaúde", ticker: "SAUD3", shares: 0, tier: 0, checked_on: ~D[2026-08-19]},
+  %{name: "Minerva", ticker: "BEEF3", shares: 0, tier: 0, checked_on: ~D[2026-08-15]},
+  %{name: "Engie Brasil", ticker: "EGIE3", shares: 0, tier: 0, checked_on: ~D[2026-08-19]},
+  %{name: "SLC Agrícola", ticker: "SLCE3", shares: 0, tier: 0, checked_on: ~D[2026-08-19]},
+  %{name: "Fleury", ticker: "FLRY3", shares: 0, tier: 0, checked_on: nil}
+]
+
+Enum.each(stocks ++ radar_stocks, fn attrs ->
   %Stock{}
   |> Stock.changeset(Map.put(attrs, :last_result, "2T26"))
   |> Ecto.Changeset.put_change(:purchase_heat, Map.get(attrs, :purchase_heat, 0))

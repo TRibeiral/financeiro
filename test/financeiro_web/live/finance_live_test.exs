@@ -227,20 +227,22 @@ defmodule FinanceiroWeb.FinanceLiveTest do
   end
 
   test "sorts expenses by date or value", %{conn: conn} do
+    {period_start, _period_end} = Financeiro.MonthPeriod.current_bounds()
+
     transaction_fixture(%{
-      occurred_on: ~D[2026-08-01],
+      occurred_on: period_start,
       amount_cents: 30_000,
       description: "Despesa antiga maior"
     })
 
     transaction_fixture(%{
-      occurred_on: ~D[2026-08-02],
+      occurred_on: Date.add(period_start, 1),
       amount_cents: 10_000,
       description: "Despesa intermediária menor"
     })
 
     transaction_fixture(%{
-      occurred_on: ~D[2026-08-03],
+      occurred_on: Date.add(period_start, 2),
       amount_cents: 20_000,
       description: "Despesa recente média"
     })
@@ -331,13 +333,11 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     assert has_element?(view, ".day-stack i.refund")
   end
 
-  test "forecasts the current month by calendar-day average for every category", %{conn: conn} do
-    today =
-      DateTime.utc_now()
-      |> DateTime.add(-3 * 60 * 60, :second)
-      |> DateTime.to_date()
-
-    days_in_month = Date.end_of_month(today).day
+  test "forecasts the current fifth-to-fourth period for every category", %{conn: conn} do
+    today = Financeiro.MonthPeriod.current_date()
+    {period_start, period_end} = Financeiro.MonthPeriod.bounds(today)
+    elapsed_days = Date.diff(today, period_start) + 1
+    days_in_period = Date.diff(period_end, period_start) + 1
 
     transaction_fixture(%{occurred_on: today, amount_cents: 2400, category: "Mercado"})
     transaction_fixture(%{occurred_on: today, amount_cents: 1200, category: "Casa"})
@@ -350,17 +350,21 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     })
 
     transaction_fixture(%{
-      occurred_on: Date.add(Date.beginning_of_month(today), -1),
+      occurred_on: Date.add(period_start, -1),
       amount_cents: 99_999,
       category: "Extras"
     })
 
     {:ok, view, html} = live(conn, ~p"/insights")
 
-    expected_total = round(3200 * days_in_month / today.day)
+    expected_total = round(3200 * days_in_period / elapsed_days)
 
     assert html =~ "Realizado e projeção"
-    assert html =~ "#{today.day} dias corridos"
+    assert html =~ "#{elapsed_days} dias do ciclo"
+
+    assert html =~
+             "Mês financeiro de #{FinanceiroWeb.Format.short_date(period_start)} a #{FinanceiroWeb.Format.short_date(period_end)}"
+
     assert has_element?(view, "#forecast-actual", "R$ 32,00")
     assert has_element?(view, "#forecast-total", FinanceiroWeb.Format.money(expected_total))
     assert length(Regex.scan(~r/class="forecast-row"/, html)) == length(Transaction.categories())
@@ -372,7 +376,7 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     attrs =
       Map.merge(
         %{
-          occurred_on: ~D[2026-08-01],
+          occurred_on: Financeiro.MonthPeriod.current_bounds() |> elem(0),
           amount_cents: 2550,
           description: "Oba Hortifruti",
           merchant_key: "oba hortifruti",

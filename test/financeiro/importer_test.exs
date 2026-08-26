@@ -55,14 +55,15 @@ defmodule Financeiro.ImporterTest do
     File.write!(path, """
     Data,Valor,Identificador,Descrição
     31/07/2026,-10.00,old,Antes do início
-    01/08/2026,-25.50,new,Oba Hortifruti
+    04/08/2026,-15.00,old-august,Antes do mês financeiro
+    05/08/2026,-25.50,new,Oba Hortifruti
     """)
 
     on_exit(fn -> File.rm(path) end)
 
     assert {:ok, import} = Importer.import_file(path, owner: "Teste")
     assert import.inserted_count == 1
-    assert import.ignored_count == 1
+    assert import.ignored_count == 2
 
     [transaction] = Ledger.list_transactions()
     assert transaction.amount_cents == 2550
@@ -73,6 +74,60 @@ defmodule Financeiro.ImporterTest do
 
     assert {:skipped, _} = Importer.import_file(path, owner: "Teste")
     assert Ledger.transaction_count() == 1
+  end
+
+  test "uses Ana as the Nubank owner unless an owner is explicitly supplied" do
+    default_path =
+      Path.join(
+        System.tmp_dir!(),
+        "financeiro-nubank-default-#{System.unique_integer([:positive])}.csv"
+      )
+
+    override_path =
+      Path.join(
+        System.tmp_dir!(),
+        "financeiro-nubank-override-#{System.unique_integer([:positive])}.csv"
+      )
+
+    File.write!(default_path, """
+    Data,Valor,Identificador,Descrição
+    25/08/2026,-10.00,owner-default,Compra padrão
+    """)
+
+    File.write!(override_path, """
+    Data,Valor,Identificador,Descrição
+    25/08/2026,-20.00,owner-override,Compra sobrescrita
+    """)
+
+    on_exit(fn ->
+      File.rm(default_path)
+      File.rm(override_path)
+    end)
+
+    assert {:ok, _import} = Importer.import_file(default_path)
+    assert {:ok, _import} = Importer.import_file(override_path, owner: "Outra Pessoa")
+
+    owners = Ledger.list_transactions() |> Enum.map(& &1.owner) |> Enum.sort()
+    assert owners == ["Ana Clara De Paiva", "Outra Pessoa"]
+  end
+
+  test "assigns BREX income to Thiago even when the Nubank file belongs to Ana" do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "financeiro-brex-owner-#{System.unique_integer([:positive])}.csv"
+      )
+
+    File.write!(path, """
+    Data,Valor,Identificador,Descrição
+    14/08/2026,54672.50,brex-income,Transferência Recebida - BREX BRASIL TECNOLOGIA LTDA - 39.315.225/0001-72 - Banco J. P. Morgan S. A. (0376) Agência: 1 Conta: 104301-5
+    """)
+
+    on_exit(fn -> File.rm(path) end)
+
+    assert {:ok, _import} = Importer.import_file(path, owner: "Ana Clara De Paiva")
+    [income] = Ledger.list_income()
+    assert income.owner == "Thiago Carneiro Ribeiral"
   end
 
   test "stores uploads without overwriting files with the same name" do

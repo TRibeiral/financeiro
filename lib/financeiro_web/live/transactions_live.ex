@@ -1,29 +1,29 @@
 defmodule FinanceiroWeb.TransactionsLive do
   use FinanceiroWeb, :live_view
   alias Financeiro.Ledger
+  alias Financeiro.MonthPeriod
   alias FinanceiroWeb.Format
 
   @impl true
   def mount(_params, _session, socket) do
-    filters = %{
-      "from" => "2026-08-01",
-      "to" => "",
-      "search" => "",
-      "category" => "all",
-      "owner" => "all",
-      "bank" => "all",
-      "origin" => "all",
-      "status" => "all",
-      "direction" => "spending",
-      "sort" => "date_desc"
-    }
+    filters =
+      Map.merge(MonthPeriod.filters(), %{
+        "search" => "",
+        "category" => "all",
+        "owner" => "all",
+        "bank" => "all",
+        "origin" => "all",
+        "status" => "all",
+        "direction" => "spending",
+        "sort" => "date_desc"
+      })
 
-    {:ok, load(socket, filters)}
+    {:ok, load(socket, filters, MonthPeriod.current_bounds())}
   end
 
   @impl true
   def handle_event("filter", %{"filters" => filters}, socket),
-    do: {:noreply, load(socket, filters)}
+    do: {:noreply, load(socket, filters, socket.assigns.period)}
 
   def handle_event("review", %{"id" => id}, socket) do
     transaction = Ledger.get_transaction!(id)
@@ -32,7 +32,7 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, "Categoria confirmada")
-     |> load(socket.assigns.filters)}
+     |> load(socket.assigns.filters, socket.assigns.period)}
   end
 
   def handle_event(
@@ -46,7 +46,7 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, "Categoria alterada para #{category} e salva no banco de dados")
-     |> load(socket.assigns.filters)}
+     |> load(socket.assigns.filters, socket.assigns.period)}
   end
 
   def handle_event("undo_or_reopen", %{"id" => id}, socket) do
@@ -64,7 +64,7 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, message)
-     |> load(socket.assigns.filters)}
+     |> load(socket.assigns.filters, socket.assigns.period)}
   end
 
   def handle_event("undo", _params, socket) do
@@ -73,15 +73,16 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, undo_message(count))
-     |> load(socket.assigns.filters)}
+     |> load(socket.assigns.filters, socket.assigns.period)}
   end
 
-  defp load(socket, filters) do
+  defp load(socket, filters, period) do
     assign(socket,
       page_title: "Despesas",
+      period: period,
       filters: filters,
       transactions: Ledger.list_transactions(filters),
-      totals: Ledger.totals(),
+      totals: Ledger.totals(filters),
       undo_available: not is_nil(Ledger.latest_undo_action()),
       options: Ledger.filter_options(),
       categories: Ledger.categories()
@@ -94,7 +95,11 @@ defmodule FinanceiroWeb.TransactionsLive do
     <Layouts.app flash={@flash} active="transactions" pending={@totals.pending}>
       <div class="page-heading">
         <div>
-          <p class="eyebrow">Desde 01 de agosto de 2026</p>
+          <p class="eyebrow">
+            Mês financeiro · {Format.short_date(elem(@period, 0))} a {Format.short_date(
+              elem(@period, 1)
+            )}
+          </p>
           <h1>Despesas</h1>
           <p>Compras e estornos, já consolidados no mesmo total.</p>
         </div>

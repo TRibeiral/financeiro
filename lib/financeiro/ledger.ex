@@ -1,5 +1,6 @@
 defmodule Financeiro.Ledger do
   import Ecto.Query
+  alias Financeiro.MonthPeriod
   alias Financeiro.Repo
   alias Financeiro.Ledger.{Import, Transaction}
 
@@ -163,16 +164,17 @@ defmodule Financeiro.Ledger do
     |> Repo.all()
   end
 
-  def income_totals do
+  def income_totals(filters \\ MonthPeriod.filters()) do
+    income_query =
+      Transaction
+      |> where([t], t.flow_type == "income")
+      |> filter_query(filters)
+
     %{
       total:
-        Repo.one(
-          from t in Transaction,
-            where: t.flow_type == "income",
-            select: coalesce(sum(t.amount_cents), 0)
-        )
+        Repo.one(from t in income_query, select: coalesce(sum(t.amount_cents), 0))
         |> abs(),
-      count: Repo.aggregate(from(t in Transaction, where: t.flow_type == "income"), :count)
+      count: Repo.aggregate(income_query, :count)
     }
   end
 
@@ -192,23 +194,30 @@ defmodule Financeiro.Ledger do
     }
   end
 
-  def totals do
-    expense_query = from t in Transaction, where: t.flow_type in ["expense", "refund"]
+  def totals(filters \\ MonthPeriod.filters()) do
+    expense_query =
+      Transaction
+      |> where([t], t.flow_type in ["expense", "refund"])
+      |> filter_query(filters)
 
     %{
       expenses: Repo.one(from t in expense_query, select: coalesce(sum(t.amount_cents), 0)),
-      count:
-        Repo.aggregate(
-          from(t in Transaction, where: t.flow_type in ["expense", "refund"]),
-          :count
-        ),
-      pending: pending_count()
+      count: Repo.aggregate(expense_query, :count),
+      pending: Repo.aggregate(where(expense_query, [t], t.review_status == "pending"), :count)
     }
   end
 
   def spending_by(field) when field in [:category, :owner, :bank] do
+    {from_date, to_date} = MonthPeriod.current_bounds()
+    spending_by(field, from_date, to_date)
+  end
+
+  def spending_by(field, %Date{} = from_date, %Date{} = to_date)
+      when field in [:category, :owner, :bank] do
     from(t in Transaction,
-      where: t.flow_type in ["expense", "refund"],
+      where:
+        t.flow_type in ["expense", "refund"] and t.occurred_on >= ^from_date and
+          t.occurred_on <= ^to_date,
       group_by: field(t, ^field),
       select: {field(t, ^field), sum(t.amount_cents)},
       order_by: [desc: sum(t.amount_cents)]
@@ -229,9 +238,16 @@ defmodule Financeiro.Ledger do
   end
 
   def spending_by_day do
+    {from_date, to_date} = MonthPeriod.current_bounds()
+    spending_by_day(from_date, to_date)
+  end
+
+  def spending_by_day(%Date{} = from_date, %Date{} = to_date) do
     Repo.all(
       from t in Transaction,
-        where: t.flow_type in ["expense", "refund"],
+        where:
+          t.flow_type in ["expense", "refund"] and t.occurred_on >= ^from_date and
+            t.occurred_on <= ^to_date,
         group_by: t.occurred_on,
         select: {t.occurred_on, sum(t.amount_cents)},
         order_by: t.occurred_on
@@ -239,9 +255,16 @@ defmodule Financeiro.Ledger do
   end
 
   def spending_by_day_and_category do
+    {from_date, to_date} = MonthPeriod.current_bounds()
+    spending_by_day_and_category(from_date, to_date)
+  end
+
+  def spending_by_day_and_category(%Date{} = from_date, %Date{} = to_date) do
     Repo.all(
       from t in Transaction,
-        where: t.flow_type in ["expense", "refund"],
+        where:
+          t.flow_type in ["expense", "refund"] and t.occurred_on >= ^from_date and
+            t.occurred_on <= ^to_date,
         group_by: [t.occurred_on, t.category, t.flow_type],
         select: {t.occurred_on, t.category, t.flow_type, sum(t.amount_cents)},
         order_by: [asc: t.occurred_on, asc: t.category, asc: t.flow_type]

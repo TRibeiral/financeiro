@@ -1,13 +1,16 @@
 defmodule FinanceiroWeb.InsightsLive do
   use FinanceiroWeb, :live_view
   alias Financeiro.Ledger
+  alias Financeiro.MonthPeriod
   alias FinanceiroWeb.Format
 
   @impl true
   def mount(_params, _session, socket) do
-    totals = Ledger.totals()
-    daily = daily_spending()
-    today = today_in_sao_paulo()
+    today = MonthPeriod.current_date()
+    {period_start, period_end} = MonthPeriod.bounds(today)
+    period_filters = MonthPeriod.filters(today)
+    totals = Ledger.totals(period_filters)
+    daily = daily_spending(period_start, period_end)
     forecast = monthly_forecast(today)
 
     {:ok,
@@ -15,8 +18,8 @@ defmodule FinanceiroWeb.InsightsLive do
        page_title: "Análises",
        pending: totals.pending,
        totals: totals,
-       owners: Ledger.spending_by(:owner),
-       banks: Ledger.spending_by(:bank),
+       owners: Ledger.spending_by(:owner, period_start, period_end),
+       banks: Ledger.spending_by(:bank, period_start, period_end),
        daily: daily,
        max_day_activity: max_day_activity(daily),
        forecast: forecast,
@@ -35,7 +38,11 @@ defmodule FinanceiroWeb.InsightsLive do
         <div>
           <p class="eyebrow">Laboratório visual</p>
           <h1>Análises</h1>
-          <p>Panorama do mês e ritmo diário dos gastos.</p>
+          <p>
+            Mês financeiro de {Format.short_date(@forecast.period_start)} a {Format.short_date(
+              @forecast.period_end
+            )}.
+          </p>
         </div>
         <div class="view-switcher">
           <button
@@ -55,12 +62,12 @@ defmodule FinanceiroWeb.InsightsLive do
             <span>Realizado até hoje</span>
             <strong id="forecast-actual">{Format.money(@forecast.actual_total)}</strong>
             <small>
-              gasto líquido em {@forecast.elapsed_days} dias corridos · estornos já descontados
+              gasto líquido em {@forecast.elapsed_days} dias do ciclo · estornos já descontados
             </small>
           </div>
           <div class="forecast-metrics">
             <div>
-              <span>Projeção até {Format.short_date(@forecast.month_end)}</span><strong id="forecast-total">{Format.money(
+              <span>Projeção até {Format.short_date(@forecast.period_end)}</span><strong id="forecast-total">{Format.money(
                   @forecast.projected_total
                 )}</strong>
             </div>
@@ -116,7 +123,7 @@ defmodule FinanceiroWeb.InsightsLive do
             </div>
 
             <p class="forecast-note">
-              Estimativa linear: gasto líquido acumulado ÷ dias corridos × dias do mês. Estornos reduzem o realizado e a projeção.
+              Estimativa linear: gasto líquido acumulado ÷ dias corridos × dias do ciclo. Estornos reduzem o realizado e a projeção.
             </p>
           </article>
           <article class="insight-card split-card">
@@ -216,13 +223,12 @@ defmodule FinanceiroWeb.InsightsLive do
   end
 
   defp monthly_forecast(today) do
-    month_start = Date.beginning_of_month(today)
-    month_end = Date.end_of_month(today)
-    elapsed_days = today.day
-    days_in_month = month_end.day
+    {period_start, period_end} = MonthPeriod.bounds(today)
+    elapsed_days = Date.diff(today, period_start) + 1
+    days_in_period = Date.diff(period_end, period_start) + 1
 
     actual_by_category =
-      month_start
+      period_start
       |> Ledger.spending_by_category_between(today)
       |> Map.new()
 
@@ -234,13 +240,13 @@ defmodule FinanceiroWeb.InsightsLive do
         %{
           category: category,
           actual: actual,
-          projected: round(actual * days_in_month / elapsed_days)
+          projected: round(actual * days_in_period / elapsed_days)
         }
       end)
       |> Enum.sort_by(&{-&1.projected, &1.category})
 
     actual_total = Enum.sum(Enum.map(categories, & &1.actual))
-    projected_total = round(actual_total * days_in_month / elapsed_days)
+    projected_total = round(actual_total * days_in_period / elapsed_days)
 
     %{
       categories: categories,
@@ -248,22 +254,17 @@ defmodule FinanceiroWeb.InsightsLive do
       projected_total: projected_total,
       daily_average: round(actual_total / elapsed_days),
       elapsed_days: elapsed_days,
-      days_in_month: days_in_month,
-      remaining_days: days_in_month - elapsed_days,
-      month_end: month_end,
+      period_days: days_in_period,
+      remaining_days: days_in_period - elapsed_days,
+      period_start: period_start,
+      period_end: period_end,
       max_projected:
         categories |> Enum.map(&max(&1.projected, 0)) |> Enum.max(fn -> 1 end) |> max(1)
     }
   end
 
-  defp today_in_sao_paulo do
-    DateTime.utc_now()
-    |> DateTime.add(-3 * 60 * 60, :second)
-    |> DateTime.to_date()
-  end
-
-  defp daily_spending do
-    Ledger.spending_by_day_and_category()
+  defp daily_spending(period_start, period_end) do
+    Ledger.spending_by_day_and_category(period_start, period_end)
     |> Enum.group_by(fn {date, _category, _flow_type, _value} -> date end)
     |> Enum.sort_by(&elem(&1, 0), Date)
     |> Enum.map(fn {date, entries} ->
@@ -289,7 +290,7 @@ defmodule FinanceiroWeb.InsightsLive do
     days |> Enum.map(& &1.activity) |> Enum.max(fn -> 1 end) |> max(1)
   end
 
-  defp largest_day([]), do: ~D[2026-08-01]
+  defp largest_day([]), do: MonthPeriod.history_start()
   defp largest_day(days), do: days |> Enum.max_by(& &1.total) |> Map.fetch!(:date)
 
   defp percent(_value, 0), do: 0

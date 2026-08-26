@@ -14,6 +14,7 @@ defmodule FinanceiroWeb.StocksLive do
         page_title: "Ações",
         pending: Ledger.pending_count(),
         view: "all",
+        sort: "tier_position",
         search: "",
         show_new: false,
         editing_id: nil,
@@ -30,6 +31,11 @@ defmodule FinanceiroWeb.StocksLive do
   def handle_event("set_view", %{"view" => view}, socket)
       when view in ~w(all owned watched unread) do
     {:noreply, socket |> assign(view: view) |> filter_stocks()}
+  end
+
+  def handle_event("set_sort", %{"sort" => sort}, socket)
+      when sort in ~w(tier_position position) do
+    {:noreply, socket |> assign(sort: sort) |> filter_stocks()}
   end
 
   def handle_event("search", %{"search" => search}, socket) do
@@ -103,7 +109,11 @@ defmodule FinanceiroWeb.StocksLive do
     do: {:noreply, socket}
 
   def handle_event("refresh_quotes", _params, socket) do
-    tickers = Enum.map(socket.assigns.stocks, & &1.ticker)
+    tickers =
+      socket.assigns.stocks
+      |> Enum.filter(&(&1.shares > 0))
+      |> Enum.map(& &1.ticker)
+
     provider = Application.fetch_env!(:financeiro, :stock_quote_provider)
 
     {:noreply,
@@ -170,9 +180,26 @@ defmodule FinanceiroWeb.StocksLive do
       |> Enum.filter(fn stock ->
         search == "" or String.contains?(String.downcase("#{stock.name} #{stock.ticker}"), search)
       end)
+      |> sort_stocks(socket.assigns.sort)
 
     assign(socket, filtered_stocks: filtered)
   end
+
+  defp sort_stocks(stocks, sort) do
+    Enum.sort(stocks, fn left, right ->
+      left_key = sort_key(left, sort)
+      right_key = sort_key(right, sort)
+
+      if left_key == right_key do
+        String.downcase(left.name) <= String.downcase(right.name)
+      else
+        left_key > right_key
+      end
+    end)
+  end
+
+  defp sort_key(stock, "position"), do: stock_value(stock)
+  defp sort_key(stock, "tier_position"), do: {stock.tier, stock_value(stock)}
 
   defp new_form(socket) do
     stock = %Stock{last_result: Investments.current_result(), checked_on: Date.utc_today()}
@@ -185,6 +212,11 @@ defmodule FinanceiroWeb.StocksLive do
   defp stock_value(stock), do: Investments.holding_value(stock)
   defp stock_percent(stock, total), do: Investments.percentage(stock, total)
   defp percent(value), do: :erlang.float_to_binary(value, decimals: 1) <> "%"
+
+  # The purchase count is unlimited; only its visual saturation is capped.
+  defp purchase_visual_heat(heat), do: min(heat, 10)
+  defp purchase_label(1), do: "1 compra recente"
+  defp purchase_label(count), do: "#{count} compras recentes"
 
   defp result_current?(stock, current_result), do: stock.last_result == current_result
 
@@ -280,10 +312,26 @@ defmodule FinanceiroWeb.StocksLive do
             Para ler <i>{@summary.results_to_read}</i>
           </button>
         </div>
-        <form phx-change="search" class="stock-search">
-          <.icon name="hero-magnifying-glass-mini" class="size-4" />
-          <input name="search" value={@search} placeholder="Buscar nome ou ticker" phx-debounce="200" />
-        </form>
+        <div class="stock-toolbar-actions">
+          <form id="stock-sort-form" phx-change="set_sort" class="stock-sort">
+            <.icon name="hero-arrows-up-down-mini" class="size-4" />
+            <select name="sort" aria-label="Ordenar ações">
+              <option value="tier_position" selected={@sort == "tier_position"}>
+                Tier ↓ · Posição ↓
+              </option>
+              <option value="position" selected={@sort == "position"}>Posição ↓</option>
+            </select>
+          </form>
+          <form phx-change="search" class="stock-search">
+            <.icon name="hero-magnifying-glass-mini" class="size-4" />
+            <input
+              name="search"
+              value={@search}
+              placeholder="Buscar nome ou ticker"
+              phx-debounce="200"
+            />
+          </form>
+        </div>
       </div>
 
       <div class="stocks-layout">
@@ -299,7 +347,10 @@ defmodule FinanceiroWeb.StocksLive do
             :for={stock <- @filtered_stocks}
             id={"stock-#{stock.id}"}
             class={["stock-card", "tier-#{stock.tier}", stock.purchase_heat > 0 && "purchased"]}
-            style={stock.purchase_heat > 0 && "--purchase-heat: #{stock.purchase_heat}"}
+            style={
+              stock.purchase_heat > 0 &&
+                "--purchase-heat: #{purchase_visual_heat(stock.purchase_heat)}"
+            }
           >
             <%= if @editing_id == stock.id do %>
               <div class="stock-form-title compact">
@@ -359,7 +410,7 @@ defmodule FinanceiroWeb.StocksLive do
                     phx-value-id={stock.id}
                     title="Marcar uma compra recente"
                   >
-                    <.icon name="hero-shopping-bag-mini" class="size-4" /><span>Compra</span>
+                    <.icon name="hero-shopping-bag-mini" class="size-4" /><span>Comprei</span>
                   </button>
                   <button phx-click="edit" phx-value-id={stock.id} title="Editar ação">
                     <.icon name="hero-pencil-square-mini" class="size-4" /><span>Editar</span>
@@ -369,7 +420,7 @@ defmodule FinanceiroWeb.StocksLive do
               <div :if={stock.purchase_heat > 0} class="purchase-note">
                 <span>
                   <.icon name="hero-arrow-trending-up-mini" class="size-3" />
-                  Compra recente · intensidade {stock.purchase_heat}/5
+                  {purchase_label(stock.purchase_heat)}
                 </span>
                 <small>A marca desaparece ao registrar o próximo resultado trimestral.</small>
               </div>

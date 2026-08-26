@@ -36,7 +36,7 @@ defmodule Financeiro.Investments do
 
   def record_purchase(%Stock{} = stock) do
     stock
-    |> Ecto.Changeset.change(purchase_heat: min(stock.purchase_heat + 1, 5))
+    |> Ecto.Changeset.change(purchase_heat: stock.purchase_heat + 1)
     |> Repo.update()
   end
 

@@ -3,6 +3,11 @@ defmodule FinanceiroWeb.ImportsLive do
   alias Financeiro.Ledger
   alias Financeiro.Ledger.LunaClassifier
 
+  @nubank_owners %{
+    "ana" => "Ana Clara De Paiva",
+    "thiago" => "Thiago Carneiro Ribeiral"
+  }
+
   @impl true
   def mount(_params, _session, socket) do
     socket =
@@ -22,6 +27,16 @@ defmodule FinanceiroWeb.ImportsLive do
 
   def handle_event("cancel-upload", %{"ref" => ref}, socket),
     do: {:noreply, cancel_upload(socket, :statements, ref)}
+
+  def handle_event("confirm-nubank-owner", %{"ref" => ref, "owner" => owner_key}, socket) do
+    with {:ok, owner} <- Map.fetch(@nubank_owners, owner_key),
+         %{} = entry <- Enum.find(socket.assigns.uploads.statements.entries, &(&1.ref == ref)),
+         true <- entry.done? and nubank_upload?(entry) do
+      import_upload(socket, entry, owner: owner)
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Não foi possível confirmar o titular")}
+    end
+  end
 
   @impl true
   def handle_event("scan", _params, socket) do
@@ -56,20 +71,28 @@ defmodule FinanceiroWeb.ImportsLive do
   end
 
   defp handle_upload_progress(:statements, entry, socket) do
-    if entry.done? do
-      result =
-        consume_uploaded_entry(socket, entry, fn %{path: temp_path} ->
-          {:ok, Financeiro.Importer.store_and_import_upload(temp_path, entry.client_name)}
-        end)
-
-      {:noreply,
-       socket
-       |> put_upload_flash(entry.client_name, result)
-       |> reload()}
-    else
-      {:noreply, socket}
+    cond do
+      not entry.done? -> {:noreply, socket}
+      nubank_upload?(entry) -> {:noreply, socket}
+      true -> import_upload(socket, entry)
     end
   end
+
+  defp import_upload(socket, entry, opts \\ []) do
+    result =
+      consume_uploaded_entry(socket, entry, fn %{path: temp_path} ->
+        {:ok, Financeiro.Importer.store_and_import_upload(temp_path, entry.client_name, opts)}
+      end)
+
+    {:noreply,
+     socket
+     |> put_upload_flash(entry.client_name, result)
+     |> reload()}
+  end
+
+  # Every supported CSV format is a Nubank export. Itaú exports are XLSX or PDF.
+  defp nubank_upload?(entry),
+    do: String.downcase(Path.extname(entry.client_name)) == ".csv"
 
   defp put_upload_flash(socket, filename, {:ok, %{import_result: {:ok, import}}}) do
     put_flash(
@@ -139,13 +162,13 @@ defmodule FinanceiroWeb.ImportsLive do
           />
           <div class="folder-icon"><.icon name="hero-folder-arrow-down" class="size-8" /></div>
           <div>
-            <span>Solte os arquivos aqui ou clique para escolher</span><strong>{@directory}</strong><small>O arquivo será movido e importado automaticamente · CSV, XLSX ou PDF</small>
+            <span>Solte os arquivos aqui ou clique para escolher</span><strong>{@directory}</strong><small>CSV Nubank pede confirmação do titular · XLSX e PDF Itaú são automáticos</small>
           </div>
         </label>
 
         <div :if={@uploads.statements.entries != []} class="upload-queue">
           <div :for={entry <- @uploads.statements.entries} class="upload-entry">
-            <div>
+            <div class="upload-entry-name">
               <strong>{entry.client_name}</strong>
               <span>{entry.progress}%</span>
             </div>
@@ -153,6 +176,25 @@ defmodule FinanceiroWeb.ImportsLive do
             <button type="button" phx-click="cancel-upload" phx-value-ref={entry.ref}>
               Cancelar
             </button>
+            <div :if={entry.done? and nubank_upload?(entry)} class="owner-confirmation">
+              <span>Este arquivo Nubank é de quem?</span>
+              <button
+                type="button"
+                phx-click="confirm-nubank-owner"
+                phx-value-ref={entry.ref}
+                phx-value-owner="ana"
+              >
+                Ana
+              </button>
+              <button
+                type="button"
+                phx-click="confirm-nubank-owner"
+                phx-value-ref={entry.ref}
+                phx-value-owner="thiago"
+              >
+                Thiago
+              </button>
+            </div>
             <small :for={error <- upload_errors(@uploads.statements, entry)}>
               {upload_error(error)}
             </small>
@@ -186,7 +228,7 @@ defmodule FinanceiroWeb.ImportsLive do
             <strong>{import.duplicate_count}</strong><span>duplicados</span>
           </div>
           <div class="import-numbers">
-            <strong>{import.ignored_count}</strong><span>antes de 01/08</span>
+            <strong>{import.ignored_count}</strong><span>antes de 05/08</span>
           </div>
         </article>
         <div :if={@imports == []} class="empty-state">

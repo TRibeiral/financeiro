@@ -48,9 +48,13 @@ defmodule Financeiro.InvestmentsTest do
         last_result: "1T26"
       })
 
-    {:ok, stock} = Investments.record_purchase(stock)
-    {:ok, stock} = Investments.record_purchase(stock)
-    assert stock.purchase_heat == 2
+    stock =
+      Enum.reduce(1..7, stock, fn _, current ->
+        {:ok, updated} = Investments.record_purchase(current)
+        updated
+      end)
+
+    assert stock.purchase_heat == 7
 
     {:ok, stock} = Investments.update_stock(stock, %{"last_result" => "2T26"})
     assert stock.purchase_heat == 0

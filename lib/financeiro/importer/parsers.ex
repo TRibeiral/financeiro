@@ -3,18 +3,21 @@ defmodule Financeiro.Importer.Parsers do
 
   alias Financeiro.Ledger.{Classifier, InternalTransfer}
 
-  @start_date ~D[2026-08-01]
+  @start_date ~D[2026-08-05]
 
   def parse(path, opts \\ []) do
-    owner = Keyword.get(opts, :owner, "Thiago Carneiro Ribeiral")
     start_date = Keyword.get(opts, :start_date, @start_date)
 
     case String.downcase(Path.extname(path)) do
-      ".csv" -> parse_csv(path, owner, start_date)
-      ".xlsx" -> parse_xlsx(path, owner, start_date)
-      ".pdf" -> parse_itau_pdf(path, owner, start_date)
+      ".csv" -> parse_csv(path, owner(opts, :nubank_owner), start_date)
+      ".xlsx" -> parse_xlsx(path, owner(opts, :default_owner), start_date)
+      ".pdf" -> parse_itau_pdf(path, owner(opts, :default_owner), start_date)
       extension -> {:error, "formato não suportado: #{extension}"}
     end
+  end
+
+  defp owner(opts, config_key) do
+    Keyword.get(opts, :owner) || Application.fetch_env!(:financeiro, config_key)
   end
 
   defp parse_csv(path, owner, start_date) do
@@ -201,6 +204,7 @@ defmodule Financeiro.Importer.Parsers do
     source_type = Keyword.fetch!(opts, :source_type)
     flow_type = InternalTransfer.flow_type(description, amount_cents, source_type)
     {category, confidence, classifier} = classification(flow_type, description, key)
+    owner = transaction_owner(description, Keyword.fetch!(opts, :owner))
 
     %{
       occurred_on: date,
@@ -213,12 +217,22 @@ defmodule Financeiro.Importer.Parsers do
       classification_confidence: confidence,
       review_status: "pending",
       bank: Keyword.fetch!(opts, :bank),
-      owner: Keyword.fetch!(opts, :owner),
+      owner: owner,
       account_ref: Keyword.get(opts, :account_ref),
       source_type: source_type,
       source_identifier: Keyword.get(opts, :source_identifier),
       raw_data: Keyword.get(opts, :raw_data, %{})
     }
+  end
+
+  defp transaction_owner(description, fallback_owner) do
+    if description
+       |> Classifier.merchant_key()
+       |> String.contains?("brex brasil tecnologia") do
+      "Thiago Carneiro Ribeiral"
+    else
+      fallback_owner
+    end
   end
 
   defp classification("income", _description, _key), do: {"Outros", 0, "not_applicable"}

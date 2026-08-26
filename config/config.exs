@@ -14,6 +14,8 @@ config :financeiro,
   stock_quote_provider: Financeiro.Investments.LunaQuoteProvider,
   codex_executable: System.find_executable("codex") || "codex",
   statements_dir: Path.expand("../../extratos", __DIR__),
+  default_owner: "Thiago Carneiro Ribeiral",
+  nubank_owner: "Ana Clara De Paiva",
   watch_statements: config_env() == :dev
 
 # Configure the endpoint

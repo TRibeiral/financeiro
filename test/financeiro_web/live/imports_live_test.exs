@@ -4,7 +4,7 @@ defmodule FinanceiroWeb.ImportsLiveTest do
 
   alias Financeiro.Ledger
 
-  test "drops a statement into the monitored folder and imports it automatically", %{conn: conn} do
+  test "asks for the Nubank owner before importing a dropped statement", %{conn: conn} do
     directory =
       Path.join(
         System.tmp_dir!(),
@@ -40,9 +40,20 @@ defmodule FinanceiroWeb.ImportsLiveTest do
 
     html = render_upload(upload, "novo-extrato.csv")
 
+    refute File.exists?(Path.join(directory, "novo-extrato.csv"))
+    assert html =~ "Este arquivo Nubank é de quem?"
+    assert html =~ "Ana"
+    assert html =~ "Thiago"
+
+    html =
+      view
+      |> element("button[phx-click='confirm-nubank-owner'][phx-value-owner='ana']")
+      |> render_click()
+
     assert File.read!(Path.join(directory, "novo-extrato.csv")) == content
     assert html =~ "movido para a pasta de extratos"
     assert html =~ "1 novos lançamentos"
     assert Ledger.transaction_count() == 1
+    assert hd(Ledger.list_transactions()).owner == "Ana Clara De Paiva"
   end
 end

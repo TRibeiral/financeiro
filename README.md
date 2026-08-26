@@ -17,8 +17,12 @@ Na tela **Importações**, arquivos CSV, XLSX e PDF podem ser soltos diretamente
 
 ```bash
 mix financeiro.import ../extratos
-mix financeiro.import /caminho/arquivo.csv --owner "Ana Clara"
+mix financeiro.import /caminho/arquivo.csv --owner "Ana Clara De Paiva"
 ```
+
+Sem `--owner`, arquivos Nubank são atribuídos a `Ana Clara De Paiva` e arquivos
+Itaú usam o titular presente no arquivo, com `Thiago Carneiro Ribeiral` como
+fallback. Use `--owner` apenas quando precisar sobrescrever essa identificação.
 
 O classificador exige o Codex CLI autenticado pela assinatura do ChatGPT:
 
@@ -35,7 +39,7 @@ Formatos reconhecidos:
 - XLSX de fatura Itaú (o titular é lido em cada lançamento);
 - PDF de conta Itaú, usando o utilitário local `pdftotext`.
 
-Só entram lançamentos a partir de `2026-08-01`. Cada arquivo tem um hash e cada lançamento tem uma impressão digital estável baseada na origem, data, valor, descrição, pessoa e conta/cartão. Isso permite sobrepor períodos sem repetir dados.
+Só entram lançamentos a partir de `2026-08-05`. O mês financeiro vai do dia 5 ao dia 4 do mês seguinte: agosto, por exemplo, cobre `05/08` a `04/09`. Cada arquivo tem um hash e cada lançamento tem uma impressão digital estável baseada na origem, data, valor, descrição, pessoa e conta/cartão. Isso permite sobrepor períodos sem repetir dados.
 
 ## Classificação
 
@@ -57,7 +61,7 @@ Recebimentos reais, como salários e depósitos, aparecem exclusivamente na aba 
 
 Estornos e reembolsos continuam na aba **Despesas**, recebem a categoria da compra correspondente e são somados com valor negativo. Assim, o total de **Saídas líquidas** já representa despesas menos estornos, sem apresentar um total de estornos separado.
 
-Na aba **Análises**, o **Panorama** reúne o realizado e a projeção de fechamento do mês por categoria e no total. O cálculo usa o gasto líquido do primeiro dia até hoje, divide pelos dias corridos e multiplica pela quantidade de dias do mês; a data corrente segue o horário de São Paulo. A visão **Ritmo** empilha cada dia nas cores das categorias e marca estornos com hachura.
+Na aba **Análises**, o **Panorama** reúne o realizado e a projeção de fechamento do mês financeiro por categoria e no total. O cálculo usa o gasto líquido desde o dia 5 até hoje, divide pelos dias corridos do ciclo e projeta até o dia 4; a data corrente segue o horário de São Paulo. A visão **Ritmo** empilha cada dia nas cores das categorias e marca estornos com hachura.
 
 Transferências entre as contas de Thiago, transferências entre Thiago e Ana Clara, pagamentos de fatura e movimentos internos de investimento são preservados na base como `transfer`, mas nunca aparecem em **Despesas** nem entram na fila de revisão, totais ou gráficos.
 
