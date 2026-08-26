@@ -11,6 +11,7 @@ config :financeiro,
   ecto_repos: [Financeiro.Repo],
   generators: [timestamp_type: :utc_datetime],
   codex_runner: Financeiro.CodexRunner,
+  stock_quote_provider: Financeiro.Investments.LunaQuoteProvider,
   codex_executable: System.find_executable("codex") || "codex",
   statements_dir: Path.expand("../../extratos", __DIR__),
   watch_statements: config_env() == :dev

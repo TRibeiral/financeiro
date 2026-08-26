@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["quotes"],
+  "properties": {
+    "quotes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ticker", "price_brl", "source"],
+        "properties": {
+          "ticker": {"type": "string"},
+          "price_brl": {"type": "number", "exclusiveMinimum": 0},
+          "source": {"type": "string"}
+        }
+      }
+    }
+  }
+}

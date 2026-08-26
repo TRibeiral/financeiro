@@ -58,6 +58,9 @@ defmodule FinanceiroWeb.Layouts do
           <.link navigate={~p"/insights"} class={@active == "insights" && "active"}>
             <.icon name="hero-chart-bar-square-mini" class="size-5" />Análises
           </.link>
+          <.link navigate={~p"/stocks"} class={@active == "stocks" && "active"}>
+            <.icon name="hero-presentation-chart-line-mini" class="size-5" />Ações
+          </.link>
           <.link navigate={~p"/imports"} class={@active == "imports" && "active"}>
             <.icon name="hero-arrow-down-tray-mini" class="size-5" />Importações
           </.link>
