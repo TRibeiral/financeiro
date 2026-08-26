@@ -338,7 +338,7 @@ defmodule FinanceiroWeb.StocksLive do
         <section class="stocks-list">
           <div class="stocks-list-head">
             <div>
-              <strong>{length(@filtered_stocks)} ações</strong><span>Valor total = cotação × quantidade</span>
+              <strong>{length(@filtered_stocks)} ações</strong><span>Posição e peso da carteira em destaque</span>
             </div>
             <span class="tier-legend"><i></i> tier <b></b> compra recente</span>
           </div>
@@ -346,11 +346,13 @@ defmodule FinanceiroWeb.StocksLive do
           <article
             :for={stock <- @filtered_stocks}
             id={"stock-#{stock.id}"}
-            class={["stock-card", "tier-#{stock.tier}", stock.purchase_heat > 0 && "purchased"]}
-            style={
-              stock.purchase_heat > 0 &&
-                "--purchase-heat: #{purchase_visual_heat(stock.purchase_heat)}"
-            }
+            class={[
+              "stock-card",
+              "tier-#{stock.tier}",
+              @editing_id == stock.id && "editing",
+              stock.purchase_heat > 0 && "purchased",
+              stock.purchase_heat > 0 && "purchase-#{purchase_visual_heat(stock.purchase_heat)}"
+            ]}
           >
             <%= if @editing_id == stock.id do %>
               <div class="stock-form-title compact">
@@ -374,18 +376,18 @@ defmodule FinanceiroWeb.StocksLive do
                   <span class="ticker-avatar">{String.first(stock.ticker)}</span>
                   <div>
                     <strong>{stock.name}</strong><span>{stock.ticker} · {if stock.shares > 0, do: "Carteira", else: "No radar"}</span>
+                    <small class="stock-market-data" title={quote_time(stock.quote_refreshed_at)}>
+                      {stock.shares} ações · {if stock.quote_cents,
+                        do: Format.money(stock.quote_cents),
+                        else: "sem cotação"}
+                    </small>
                   </div>
                 </div>
-                <div class="stock-quantity">
-                  <span>Quantidade</span><strong>{stock.shares}</strong>
-                </div>
-                <div class="stock-quote">
-                  <span>Cotação</span><strong>{if stock.quote_cents, do: Format.money(stock.quote_cents), else: "—"}</strong><small title={
-                    stock.quote_source
-                  }>{quote_time(stock.quote_refreshed_at)}</small>
-                </div>
                 <div class="stock-position">
-                  <span>Posição</span><strong>{Format.money(stock_value(stock))}</strong><small>{percent(stock_percent(stock, @summary.total))} da carteira</small>
+                  <span>Posição</span><strong>{Format.money(stock_value(stock))}</strong>
+                </div>
+                <div class="stock-weight">
+                  <span>Peso</span><strong>{percent(stock_percent(stock, @summary.total))}</strong>
                 </div>
                 <div class="stock-review">
                   <span>Resultado lido</span>
@@ -405,24 +407,31 @@ defmodule FinanceiroWeb.StocksLive do
                 </div>
                 <div class="stock-actions">
                   <button
-                    class="buy-action"
+                    class={["buy-action", stock.purchase_heat > 0 && "has-count"]}
                     phx-click="record_purchase"
                     phx-value-id={stock.id}
-                    title="Marcar uma compra recente"
+                    aria-label="Marcar uma compra recente"
+                    title={
+                      if stock.purchase_heat > 0,
+                        do: "#{purchase_label(stock.purchase_heat)} · marcar outra compra",
+                        else: "Marcar uma compra recente"
+                    }
                   >
-                    <.icon name="hero-shopping-bag-mini" class="size-4" /><span>Comprei</span>
+                    <%= if stock.purchase_heat > 0 do %>
+                      <strong>{stock.purchase_heat}</strong>
+                    <% else %>
+                      <.icon name="hero-shopping-bag-mini" class="size-4" />
+                    <% end %>
                   </button>
-                  <button phx-click="edit" phx-value-id={stock.id} title="Editar ação">
+                  <button
+                    class="edit-action"
+                    phx-click="edit"
+                    phx-value-id={stock.id}
+                    title="Editar ação"
+                  >
                     <.icon name="hero-pencil-square-mini" class="size-4" /><span>Editar</span>
                   </button>
                 </div>
-              </div>
-              <div :if={stock.purchase_heat > 0} class="purchase-note">
-                <span>
-                  <.icon name="hero-arrow-trending-up-mini" class="size-3" />
-                  {purchase_label(stock.purchase_heat)}
-                </span>
-                <small>A marca desaparece ao registrar o próximo resultado trimestral.</small>
               </div>
             <% end %>
           </article>
@@ -443,32 +452,6 @@ defmodule FinanceiroWeb.StocksLive do
             </button>
           </div>
         </section>
-
-        <aside class="allocation-card">
-          <div class="allocation-title">
-            <div><span>Distribuição</span><strong>Peso da carteira</strong></div>
-            <i>100%</i>
-          </div>
-          <div :if={@summary.total > 0} class="allocation-list">
-            <div :for={stock <- Enum.filter(@stocks, &(stock_value(&1) > 0))} class="allocation-row">
-              <div>
-                <span>{stock.ticker}</span><strong>{percent(stock_percent(stock, @summary.total))}</strong>
-              </div>
-              <div class="allocation-track">
-                <i style={"width: #{stock_percent(stock, @summary.total)}%"}></i>
-              </div>
-              <small>{Format.money(stock_value(stock))}</small>
-            </div>
-          </div>
-          <div :if={@summary.total == 0} class="allocation-empty">
-            <span>∿</span><strong>Aguardando posições</strong>
-            <p>Preencha as quantidades e atualize as cotações para ver a distribuição.</p>
-          </div>
-          <div class="allocation-foot">
-            <span><i class="quote-dot"></i>{@summary.without_quote} sem cotação</span>
-            <small>Codex · ChatGPT · {Financeiro.Investments.LunaQuoteProvider.model()}</small>
-          </div>
-        </aside>
       </div>
     </Layouts.app>
     """

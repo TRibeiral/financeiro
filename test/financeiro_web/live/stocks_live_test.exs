@@ -79,6 +79,8 @@ defmodule FinanceiroWeb.StocksLiveTest do
     assert Repo.reload!(watched_stock).quote_cents == nil
     assert Repo.reload!(watched_stock).quote_source == nil
     assert render(view) =~ "R$ 3.750,00"
+    assert render(view) =~ "100.0%"
+    refute render(view) =~ "allocation-card"
     assert render(view) =~ "1 cotação atualizada com Luna"
   end
 
@@ -148,7 +150,9 @@ defmodule FinanceiroWeb.StocksLiveTest do
     {:ok, view, _html} = live(conn, ~p"/stocks")
     html = view |> element("#stock-#{stock.id} .buy-action") |> render_click()
     assert html =~ "purchased"
+    assert html =~ "purchase-6"
     assert html =~ "6 compras recentes"
+    refute html =~ "purchase-note"
     assert Repo.reload!(stock).purchase_heat == 6
 
     view |> element("#stock-#{stock.id} button[title='Editar ação']") |> render_click()
