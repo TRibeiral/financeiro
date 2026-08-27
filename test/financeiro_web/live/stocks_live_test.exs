@@ -5,6 +5,19 @@ defmodule FinanceiroWeb.StocksLiveTest do
   alias Financeiro.Investments
   alias Financeiro.Repo
 
+  defmodule ControlledQuoteProvider do
+    def fetch_quotes([ticker]) do
+      test_pid = Process.whereis(:stock_quote_test)
+      send(test_pid, {:quote_started, ticker, self()})
+
+      receive do
+        {:return_quote, ^ticker, result} -> result
+      after
+        1_000 -> {:error, "test timeout"}
+      end
+    end
+  end
+
   test "adds owned and watched stocks and filters the portfolio", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/stocks")
     assert html =~ "Sua carteira começa aqui"
@@ -82,6 +95,71 @@ defmodule FinanceiroWeb.StocksLiveTest do
     assert render(view) =~ "100.0%"
     refute render(view) =~ "allocation-card"
     assert render(view) =~ "1 cotação atualizada com Luna"
+  end
+
+  test "runs one quote task per stock and clears each position loader independently", %{
+    conn: conn
+  } do
+    original_provider = Application.fetch_env!(:financeiro, :stock_quote_provider)
+    Application.put_env(:financeiro, :stock_quote_provider, ControlledQuoteProvider)
+    Process.register(self(), :stock_quote_test)
+
+    on_exit(fn ->
+      Application.put_env(:financeiro, :stock_quote_provider, original_provider)
+
+      if Process.whereis(:stock_quote_test) == self() do
+        Process.unregister(:stock_quote_test)
+      end
+    end)
+
+    {:ok, petrobras} =
+      Investments.create_stock(%{
+        name: "Petrobras",
+        ticker: "PETR4",
+        shares: 100,
+        tier: 5,
+        last_result: "2T26"
+      })
+
+    {:ok, vale} =
+      Investments.create_stock(%{
+        name: "Vale",
+        ticker: "VALE3",
+        shares: 50,
+        tier: 4,
+        last_result: "2T26"
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/stocks")
+    view |> element("#refresh-quotes") |> render_click()
+
+    tasks =
+      Enum.reduce(1..2, %{}, fn _, tasks ->
+        assert_receive {:quote_started, ticker, task}, 500
+        Map.put(tasks, ticker, task)
+      end)
+
+    html = render(view)
+    assert html =~ "stock-position-loading-#{petrobras.id}"
+    assert html =~ "stock-position-loading-#{vale.id}"
+
+    send(tasks["PETR4"], {
+      :return_quote,
+      "PETR4",
+      {:ok, [%{ticker: "PETR4", price_cents: 3_750, source: "Cotação de teste"}]}
+    })
+
+    assert eventually(fn -> Repo.reload!(petrobras).quote_cents == 3_750 end)
+    html = render(view)
+    refute html =~ "stock-position-loading-#{petrobras.id}"
+    assert html =~ "stock-position-loading-#{vale.id}"
+
+    send(tasks["VALE3"], {:return_quote, "VALE3", {:error, "fonte indisponível"}})
+    html = render_async(view, 1_000)
+
+    refute html =~ "stock-position-loading-#{vale.id}"
+    assert html =~ "1 cotação atualizada com Luna; 1 falhou"
+    assert Repo.reload!(vale).quote_cents == nil
   end
 
   test "sorts by tier and position by default and can sort by position only", %{conn: conn} do
@@ -180,4 +258,17 @@ defmodule FinanceiroWeb.StocksLiveTest do
     |> Regex.scan(html, capture: :all_but_first)
     |> Enum.map(fn [id] -> String.to_integer(id) end)
   end
+
+  defp eventually(fun, attempts \\ 20)
+
+  defp eventually(fun, attempts) when attempts > 0 do
+    if fun.() do
+      true
+    else
+      Process.sleep(10)
+      eventually(fun, attempts - 1)
+    end
+  end
+
+  defp eventually(_fun, 0), do: false
 end

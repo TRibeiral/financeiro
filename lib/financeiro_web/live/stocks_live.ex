@@ -19,7 +19,10 @@ defmodule FinanceiroWeb.StocksLive do
         show_new: false,
         editing_id: nil,
         edit_form: nil,
-        refreshing: false
+        refreshing: false,
+        refreshing_stock_ids: MapSet.new(),
+        refresh_updated: 0,
+        refresh_failures: []
       )
       |> new_form()
       |> reload()
@@ -109,48 +112,116 @@ defmodule FinanceiroWeb.StocksLive do
     do: {:noreply, socket}
 
   def handle_event("refresh_quotes", _params, socket) do
-    tickers =
+    stocks =
       socket.assigns.stocks
       |> Enum.filter(&(&1.shares > 0))
-      |> Enum.map(& &1.ticker)
 
-    provider = Application.fetch_env!(:financeiro, :stock_quote_provider)
+    case stocks do
+      [] ->
+        {:noreply, put_flash(socket, :error, "Não há ações na carteira para atualizar")}
 
-    {:noreply,
-     socket
-     |> assign(refreshing: true)
-     |> start_async(:refresh_quotes, fn -> provider.fetch_quotes(tickers) end)}
-  end
+      stocks ->
+        provider = Application.fetch_env!(:financeiro, :stock_quote_provider)
 
-  @impl true
-  def handle_async(:refresh_quotes, {:ok, {:ok, quotes}}, socket) do
-    case Investments.apply_quotes(quotes) do
-      {:ok, count} ->
-        {:noreply,
-         socket
-         |> assign(refreshing: false)
-         |> put_flash(:info, quote_success_message(count))
-         |> reload()}
+        socket =
+          assign(socket,
+            refreshing: true,
+            refreshing_stock_ids: MapSet.new(stocks, & &1.id),
+            refresh_updated: 0,
+            refresh_failures: []
+          )
 
-      {:error, reason} ->
-        {:noreply, quote_error(socket, inspect(reason))}
+        socket =
+          Enum.reduce(stocks, socket, fn stock, socket ->
+            start_async(socket, {:refresh_quote, stock.id, stock.ticker}, fn ->
+              provider.fetch_quotes([stock.ticker])
+            end)
+          end)
+
+        {:noreply, socket}
     end
   end
 
-  def handle_async(:refresh_quotes, {:ok, {:error, reason}}, socket),
-    do: {:noreply, quote_error(socket, reason)}
+  @impl true
+  def handle_async({:refresh_quote, id, ticker}, {:ok, {:ok, quotes}}, socket) do
+    case Investments.apply_quotes(quotes) do
+      {:ok, count} when count > 0 ->
+        {:noreply, finish_quote_refresh(socket, id, ticker, count)}
 
-  def handle_async(:refresh_quotes, {:exit, reason}, socket),
-    do: {:noreply, quote_error(socket, inspect(reason))}
+      {:ok, _count} ->
+        {:noreply, finish_quote_refresh(socket, id, ticker, 0, "cotação não encontrada")}
 
-  defp quote_error(socket, reason) do
+      {:error, reason} ->
+        {:noreply, finish_quote_refresh(socket, id, ticker, 0, inspect(reason))}
+    end
+  end
+
+  def handle_async({:refresh_quote, id, ticker}, {:ok, {:error, reason}}, socket),
+    do: {:noreply, finish_quote_refresh(socket, id, ticker, 0, reason)}
+
+  def handle_async({:refresh_quote, id, ticker}, {:exit, reason}, socket),
+    do: {:noreply, finish_quote_refresh(socket, id, ticker, 0, inspect(reason))}
+
+  defp finish_quote_refresh(socket, id, ticker, updated, failure \\ nil) do
+    failures =
+      if failure do
+        [{ticker, to_string(failure)} | socket.assigns.refresh_failures]
+      else
+        socket.assigns.refresh_failures
+      end
+
     socket
-    |> assign(refreshing: false)
-    |> put_flash(:error, "Não foi possível atualizar as cotações: #{reason}")
+    |> assign(
+      refreshing_stock_ids: MapSet.delete(socket.assigns.refreshing_stock_ids, id),
+      refresh_updated: socket.assigns.refresh_updated + updated,
+      refresh_failures: failures
+    )
+    |> reload()
+    |> maybe_finish_quote_refresh()
+  end
+
+  defp maybe_finish_quote_refresh(%{assigns: %{refreshing_stock_ids: pending}} = socket) do
+    if MapSet.size(pending) > 0 do
+      socket
+    else
+      socket = assign(socket, refreshing: false)
+      updated = socket.assigns.refresh_updated
+      failures = Enum.reverse(socket.assigns.refresh_failures)
+
+      case failures do
+        [] ->
+          put_flash(socket, :info, quote_success_message(updated))
+
+        failures when updated > 0 ->
+          put_flash(
+            socket,
+            :error,
+            "#{quote_success_message(updated)}; #{quote_failure_message(failures)}"
+          )
+
+        failures ->
+          put_flash(
+            socket,
+            :error,
+            "Não foi possível atualizar: #{quote_failure_message(failures)}"
+          )
+      end
+    end
   end
 
   defp quote_success_message(1), do: "1 cotação atualizada com Luna"
   defp quote_success_message(count), do: "#{count} cotações atualizadas com Luna"
+
+  defp quote_failure_message(failures) do
+    count = length(failures)
+
+    details =
+      failures
+      |> Enum.map_join(", ", fn {ticker, reason} -> "#{ticker}: #{reason}" end)
+      |> String.slice(0, 300)
+
+    "#{count} #{if count == 1, do: "falhou", else: "falharam"} (#{details})"
+  end
 
   defp reload(socket) do
     stocks = Investments.list_stocks()
@@ -254,7 +325,7 @@ defmodule FinanceiroWeb.StocksLive do
             id="refresh-quotes"
             phx-click="refresh_quotes"
             class="primary-action quote-refresh"
-            disabled={@stocks == [] or @refreshing}
+            disabled={@summary.owned == 0 or @refreshing}
           >
             <.icon name="hero-arrow-path-mini" class={["size-4", @refreshing && "spin"]} />
             {if @refreshing, do: "Luna pesquisando…", else: "Atualizar cotações"}
@@ -384,7 +455,20 @@ defmodule FinanceiroWeb.StocksLive do
                   </div>
                 </div>
                 <div class="stock-position">
-                  <span>Posição</span><strong>{Format.money(stock_value(stock))}</strong>
+                  <span>Posição</span>
+                  <%= if MapSet.member?(@refreshing_stock_ids, stock.id) do %>
+                    <strong
+                      id={"stock-position-loading-#{stock.id}"}
+                      class="stock-position-loading"
+                      role="status"
+                      aria-label={"Atualizando cotação de #{stock.ticker}"}
+                    >
+                      <.icon name="hero-arrow-path-mini" class="size-4 spin" />
+                      <span>Atualizando</span>
+                    </strong>
+                  <% else %>
+                    <strong>{Format.money(stock_value(stock))}</strong>
+                  <% end %>
                 </div>
                 <div class="stock-weight">
                   <span>Peso</span><strong>{percent(stock_percent(stock, @summary.total))}</strong>

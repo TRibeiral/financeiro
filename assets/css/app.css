@@ -450,6 +450,9 @@ button, select { cursor: pointer; }
 .stock-identity span { color: var(--row-muted); font-size: 8px; }
 .stock-identity .stock-market-data { overflow: hidden; color: var(--row-muted); font-size: 7px; white-space: nowrap; text-overflow: ellipsis; }
 .stock-position strong { font: 700 15px Georgia, serif !important; }
+.stock-position .stock-position-loading { display: flex; align-items: center; gap: 5px; color: var(--row-ink); font: 750 8px Inter, sans-serif !important; letter-spacing: .01em; }
+.stock-position-loading svg { flex: 0 0 auto; width: 14px; height: 14px; }
+.stock-position-loading span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .stock-weight strong { font: 700 16px Georgia, serif !important; }
 .stock-position > span, .stock-weight > span { font-size: 8px !important; }
 .stock-review strong { width: fit-content; padding: 3px 6px; border-radius: 5px; background: #fff0e8; color: #97482f !important; }
