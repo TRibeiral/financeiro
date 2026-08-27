@@ -56,9 +56,20 @@ defmodule Financeiro.InvestmentsTest do
 
     assert stock.purchase_heat == 7
 
+    {:ok, stock} = Investments.remove_purchase(stock)
+    assert stock.purchase_heat == 6
+
     {:ok, stock} = Investments.update_stock(stock, %{"last_result" => "2T26"})
     assert stock.purchase_heat == 0
     assert stock.tier == 4
+  end
+
+  test "purchase marks cannot be reduced below zero" do
+    {:ok, stock} =
+      Investments.create_stock(%{name: "Petrobras", ticker: "PETR4", shares: 100, tier: 4})
+
+    assert {:ok, stock} = Investments.remove_purchase(stock)
+    assert stock.purchase_heat == 0
   end
 
   test "separates positions from watched stocks in the summary" do

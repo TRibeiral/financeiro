@@ -19,6 +19,7 @@ defmodule FinanceiroWeb.StocksLive do
         show_new: false,
         editing_id: nil,
         edit_form: nil,
+        purchase_menu_id: nil,
         refreshing: false,
         refreshing_stock_ids: MapSet.new(),
         refresh_updated: 0,
@@ -99,7 +100,19 @@ defmodule FinanceiroWeb.StocksLive do
   def handle_event("record_purchase", %{"id" => id}, socket) do
     stock = Investments.get_stock!(id)
     {:ok, _stock} = Investments.record_purchase(stock)
-    {:noreply, socket |> put_flash(:info, "Compra de #{stock.ticker} marcada") |> reload()}
+    {:noreply, socket |> assign(purchase_menu_id: nil) |> reload()}
+  end
+
+  def handle_event("remove_purchase", %{"id" => id}, socket) do
+    stock = Investments.get_stock!(id)
+    {:ok, _stock} = Investments.remove_purchase(stock)
+    {:noreply, socket |> assign(purchase_menu_id: nil) |> reload()}
+  end
+
+  def handle_event("toggle_purchase_menu", %{"id" => id}, socket) do
+    id = String.to_integer(id)
+    menu_id = if socket.assigns.purchase_menu_id == id, do: nil, else: id
+    {:noreply, assign(socket, purchase_menu_id: menu_id)}
   end
 
   def handle_event("check_today", %{"id" => id}, socket) do
@@ -490,19 +503,39 @@ defmodule FinanceiroWeb.StocksLive do
                   <span>{tier_name(stock.tier)}</span><strong>{stock.tier}</strong>
                 </div>
                 <div class="stock-actions">
-                  <button
-                    class={["buy-action", stock.purchase_heat > 0 && "has-count"]}
-                    phx-click="record_purchase"
-                    phx-value-id={stock.id}
-                    aria-label="Marcar uma compra recente"
-                    title={
-                      if stock.purchase_heat > 0,
-                        do: "#{purchase_label(stock.purchase_heat)} · marcar outra compra",
-                        else: "Marcar uma compra recente"
-                    }
-                  >
-                    <strong>{stock.purchase_heat}</strong>
-                  </button>
+                  <div class="purchase-controls">
+                    <button
+                      class={["buy-action", stock.purchase_heat > 0 && "has-count"]}
+                      phx-click="toggle_purchase_menu"
+                      phx-value-id={stock.id}
+                      aria-label="Alterar número de compras recentes"
+                      aria-expanded={@purchase_menu_id == stock.id}
+                      title={purchase_label(stock.purchase_heat)}
+                    >
+                      <strong>{stock.purchase_heat}</strong>
+                    </button>
+                    <div :if={@purchase_menu_id == stock.id} class="purchase-menu">
+                      <button
+                        class="purchase-minus"
+                        phx-click="remove_purchase"
+                        phx-value-id={stock.id}
+                        disabled={stock.purchase_heat == 0}
+                        aria-label="Remover uma compra recente"
+                        title="Remover uma compra"
+                      >
+                        <.icon name="hero-minus-mini" class="size-3" />
+                      </button>
+                      <button
+                        class="purchase-plus"
+                        phx-click="record_purchase"
+                        phx-value-id={stock.id}
+                        aria-label="Adicionar uma compra recente"
+                        title="Adicionar uma compra"
+                      >
+                        <.icon name="hero-plus-mini" class="size-3" />
+                      </button>
+                    </div>
+                  </div>
                   <button
                     class="edit-action"
                     phx-click="edit"

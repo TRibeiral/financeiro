@@ -227,11 +227,30 @@ defmodule FinanceiroWeb.StocksLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/stocks")
     html = view |> element("#stock-#{stock.id} .buy-action") |> render_click()
+    assert html =~ "purchase-menu"
+
+    html = view |> element("#stock-#{stock.id} .purchase-plus") |> render_click()
     assert html =~ "purchased"
     assert html =~ "purchase-6"
     assert html =~ "6 compras recentes"
     refute html =~ "purchase-note"
     assert Repo.reload!(stock).purchase_heat == 6
+
+    html =
+      view
+      |> element("#stock-#{stock.id} .buy-action")
+      |> render_click()
+
+    assert html =~ "purchase-menu"
+
+    html =
+      view
+      |> element("#stock-#{stock.id} .purchase-minus")
+      |> render_click()
+
+    assert html =~ "purchase-5"
+    refute html =~ "purchase-menu"
+    assert Repo.reload!(stock).purchase_heat == 5
 
     view |> element("#stock-#{stock.id} button[title='Editar ação']") |> render_click()
 

@@ -40,6 +40,12 @@ defmodule Financeiro.Investments do
     |> Repo.update()
   end
 
+  def remove_purchase(%Stock{} = stock) do
+    stock
+    |> Ecto.Changeset.change(purchase_heat: max(stock.purchase_heat - 1, 0))
+    |> Repo.update()
+  end
+
   def check_today(%Stock{} = stock) do
     stock |> Ecto.Changeset.change(checked_on: Date.utc_today()) |> Repo.update()
   end
