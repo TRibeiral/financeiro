@@ -209,6 +209,51 @@ defmodule FinanceiroWeb.StocksLiveTest do
     assert stock_ids(html) == [larger_position.id, smaller_position.id, tier_five.id]
   end
 
+  test "shows portfolio and tier charts in a separate distribution tab", %{conn: conn} do
+    {:ok, petrobras} =
+      Investments.create_stock(%{
+        name: "Petrobras",
+        ticker: "PETR4",
+        shares: 100,
+        tier: 5,
+        last_result: "2T26"
+      })
+
+    {:ok, vale} =
+      Investments.create_stock(%{
+        name: "Vale",
+        ticker: "VALE3",
+        shares: 50,
+        tier: 3,
+        last_result: "2T26"
+      })
+
+    {:ok, 2} =
+      Investments.apply_quotes([
+        %{ticker: petrobras.ticker, price_cents: 1_000},
+        %{ticker: vale.ticker, price_cents: 1_000}
+      ])
+
+    {:ok, view, _html} = live(conn, ~p"/stocks")
+
+    html = view |> element("#stocks-distribution-tab") |> render_click()
+
+    assert html =~ "Participação na carteira"
+    assert html =~ "Peso por posição"
+    assert html =~ "Patrimônio por tier"
+    assert html =~ ~s(id="allocation-PETR4")
+    assert html =~ ~s(id="allocation-VALE3")
+    assert html =~ ~s(id="tier-allocation-5")
+    assert html =~ "66.7%"
+    assert html =~ "33.3%"
+    refute has_element?(view, ".stocks-layout")
+
+    view |> element("#stocks-list-tab") |> render_click()
+    assert has_element?(view, ".stocks-layout")
+    assert has_element?(view, "#stock-sort-form .stock-control")
+    assert has_element?(view, "#stock-search-form .stock-control")
+  end
+
   test "marks purchases pink and restores the tier color on a new quarter", %{conn: conn} do
     {:ok, stock} =
       Investments.create_stock(%{

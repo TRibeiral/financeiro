@@ -13,6 +13,7 @@ defmodule FinanceiroWeb.StocksLive do
       |> assign(
         page_title: "Ações",
         pending: Ledger.pending_count(),
+        page_view: "list",
         view: "all",
         sort: "tier_position",
         search: "",
@@ -29,6 +30,12 @@ defmodule FinanceiroWeb.StocksLive do
       |> reload()
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_event("set_page_view", %{"view" => view}, socket)
+      when view in ~w(list distribution) do
+    {:noreply, assign(socket, page_view: view)}
   end
 
   @impl true
@@ -243,6 +250,7 @@ defmodule FinanceiroWeb.StocksLive do
     |> assign(
       stocks: stocks,
       summary: Investments.summary(stocks),
+      distribution: distribution(stocks),
       current_result: Investments.current_result()
     )
     |> filter_stocks()
@@ -296,6 +304,89 @@ defmodule FinanceiroWeb.StocksLive do
   defp stock_value(stock), do: Investments.holding_value(stock)
   defp stock_percent(stock, total), do: Investments.percentage(stock, total)
   defp percent(value), do: :erlang.float_to_binary(value, decimals: 1) <> "%"
+
+  defp distribution(stocks) do
+    positions =
+      stocks
+      |> Enum.filter(&(&1.shares > 0 and stock_value(&1) > 0))
+      |> Enum.sort_by(&stock_value/1, :desc)
+
+    total = Enum.reduce(positions, 0, &(stock_value(&1) + &2))
+
+    position_rows =
+      positions
+      |> Enum.with_index()
+      |> Enum.map(fn {stock, index} ->
+        %{
+          stock: stock,
+          value: stock_value(stock),
+          percent: stock_percent(stock, total),
+          color: chart_color(index)
+        }
+      end)
+
+    tier_rows =
+      position_rows
+      |> Enum.group_by(& &1.stock.tier)
+      |> Enum.map(fn {tier, rows} ->
+        value = Enum.reduce(rows, 0, &(&1.value + &2))
+
+        %{
+          tier: tier,
+          value: value,
+          percent: if(total > 0, do: value * 100 / total, else: 0.0),
+          positions: length(rows),
+          color: tier_chart_color(tier)
+        }
+      end)
+      |> Enum.sort_by(& &1.value, :desc)
+
+    %{
+      total: total,
+      positions: position_rows,
+      tiers: tier_rows,
+      donut: donut_gradient(position_rows),
+      unquoted: Enum.count(stocks, fn stock -> stock.shares > 0 and is_nil(stock.quote_cents) end)
+    }
+  end
+
+  defp donut_gradient([]), do: "conic-gradient(#edf0eb 0% 100%)"
+
+  defp donut_gradient(rows) do
+    {stops, _end_percent} =
+      Enum.map_reduce(rows, 0.0, fn row, start_percent ->
+        end_percent = start_percent + row.percent
+
+        {"#{row.color} #{decimal(start_percent)}% #{decimal(end_percent)}%", end_percent}
+      end)
+
+    "conic-gradient(#{Enum.join(stops, ", ")})"
+  end
+
+  defp decimal(value), do: :erlang.float_to_binary(value * 1.0, decimals: 2)
+
+  defp chart_color(index) do
+    colors = [
+      "#24483b",
+      "#5f806f",
+      "#d8ff62",
+      "#f0a36f",
+      "#4d83a6",
+      "#9b6f91",
+      "#a9c68c",
+      "#d36363"
+    ]
+
+    Enum.at(colors, rem(index, length(colors)))
+  end
+
+  defp tier_chart_color(-1), do: "#c33f3a"
+  defp tier_chart_color(0), do: "#8ab77d"
+  defp tier_chart_color(1), do: "#c8e3fb"
+  defp tier_chart_color(2), do: "#9fcdf3"
+  defp tier_chart_color(3), do: "#65abe3"
+  defp tier_chart_color(4), do: "#2074b4"
+  defp tier_chart_color(5), do: "#0d5797"
 
   # The purchase count is unlimited; only its visual saturation is capped.
   defp purchase_visual_heat(heat), do: min(heat, 10)
@@ -381,7 +472,32 @@ defmodule FinanceiroWeb.StocksLive do
         <.stock_form form={@new_form} submit="create" id="new-stock-form" />
       </section>
 
-      <div class="stock-toolbar">
+      <nav class="stock-page-tabs" role="tablist" aria-label="Visualização de ações">
+        <button
+          id="stocks-list-tab"
+          type="button"
+          role="tab"
+          aria-selected={@page_view == "list"}
+          phx-click="set_page_view"
+          phx-value-view="list"
+          class={@page_view == "list" && "active"}
+        >
+          <.icon name="hero-list-bullet-mini" class="size-4" /> Lista
+        </button>
+        <button
+          id="stocks-distribution-tab"
+          type="button"
+          role="tab"
+          aria-selected={@page_view == "distribution"}
+          phx-click="set_page_view"
+          phx-value-view="distribution"
+          class={@page_view == "distribution" && "active"}
+        >
+          <.icon name="hero-chart-pie-mini" class="size-4" /> Distribuição
+        </button>
+      </nav>
+
+      <div :if={@page_view == "list"} class="stock-toolbar">
         <div class="stock-tabs" role="tablist">
           <button phx-click="set_view" phx-value-view="all" class={@view == "all" && "active"}>
             Todas <i>{length(@stocks)}</i>
@@ -397,28 +513,33 @@ defmodule FinanceiroWeb.StocksLive do
           </button>
         </div>
         <div class="stock-toolbar-actions">
-          <form id="stock-sort-form" phx-change="set_sort" class="stock-sort">
-            <.icon name="hero-arrows-up-down-mini" class="size-4" />
-            <select name="sort" aria-label="Ordenar ações">
-              <option value="tier_position" selected={@sort == "tier_position"}>
-                Tier ↓ · Posição ↓
-              </option>
-              <option value="position" selected={@sort == "position"}>Posição ↓</option>
-            </select>
+          <form id="stock-sort-form" phx-change="set_sort" class="stock-sort-form">
+            <label class="stock-control stock-sort-control">
+              <.icon name="hero-arrows-up-down-mini" class="size-4" />
+              <select name="sort" aria-label="Ordenar ações">
+                <option value="tier_position" selected={@sort == "tier_position"}>
+                  Tier ↓ · Posição ↓
+                </option>
+                <option value="position" selected={@sort == "position"}>Posição ↓</option>
+              </select>
+            </label>
           </form>
-          <form phx-change="search" class="stock-search">
-            <.icon name="hero-magnifying-glass-mini" class="size-4" />
-            <input
-              name="search"
-              value={@search}
-              placeholder="Buscar nome ou ticker"
-              phx-debounce="200"
-            />
+          <form id="stock-search-form" phx-change="search" class="stock-search-form">
+            <label class="stock-control stock-search-control">
+              <.icon name="hero-magnifying-glass-mini" class="size-4" />
+              <input
+                name="search"
+                value={@search}
+                placeholder="Buscar nome ou ticker"
+                aria-label="Buscar ação por nome ou ticker"
+                phx-debounce="200"
+              />
+            </label>
           </form>
         </div>
       </div>
 
-      <div class="stocks-layout">
+      <div :if={@page_view == "list"} class="stocks-layout">
         <section class="stocks-list">
           <div class="stocks-list-head">
             <div>
@@ -567,6 +688,118 @@ defmodule FinanceiroWeb.StocksLive do
           </div>
         </section>
       </div>
+
+      <section :if={@page_view == "distribution"} class="stock-distribution" id="stock-distribution">
+        <%= if @distribution.positions == [] do %>
+          <div class="distribution-empty">
+            <span><.icon name="hero-chart-pie" class="size-8" /></span>
+            <strong>A distribuição aparece com as cotações</strong>
+            <p>Atualize as cotações das ações em carteira para calcular os pesos e os tiers.</p>
+            <button
+              phx-click="refresh_quotes"
+              class="primary-action"
+              disabled={@summary.owned == 0 or @refreshing}
+            >
+              Atualizar cotações
+            </button>
+          </div>
+        <% else %>
+          <article class="distribution-card allocation-overview">
+            <div class="distribution-card-heading">
+              <div>
+                <p>Alocação atual</p>
+                <h2>Participação na carteira</h2>
+              </div>
+              <span>{@summary.owned} posições</span>
+            </div>
+            <div class="allocation-chart-wrap">
+              <div
+                class="allocation-donut"
+                style={"background: #{@distribution.donut}"}
+                role="img"
+                aria-label="Gráfico de distribuição do patrimônio por ação"
+              >
+                <div>
+                  <span>Patrimônio</span>
+                  <strong>{Format.money(@distribution.total)}</strong>
+                </div>
+              </div>
+              <div class="allocation-legend">
+                <div
+                  :for={row <- @distribution.positions}
+                  id={"allocation-#{row.stock.ticker}"}
+                  class="allocation-legend-row"
+                >
+                  <i style={"background: #{row.color}"}></i>
+                  <div><strong>{row.stock.ticker}</strong><span>{row.stock.name}</span></div>
+                  <b>{percent(row.percent)}</b>
+                  <small>{Format.money(row.value)}</small>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="distribution-card position-distribution">
+            <div class="distribution-card-heading">
+              <div>
+                <p>Concentração</p>
+                <h2>Peso por posição</h2>
+              </div>
+            </div>
+            <div class="position-bars">
+              <div :for={row <- @distribution.positions} class="position-bar-row">
+                <div class="position-bar-label">
+                  <strong>{row.stock.ticker}</strong><span>{percent(row.percent)}</span>
+                </div>
+                <div class="position-bar-track">
+                  <i style={"width: #{decimal(row.percent)}%; background: #{row.color}"}></i>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="distribution-card tier-distribution">
+            <div class="distribution-card-heading">
+              <div>
+                <p>Convicção</p>
+                <h2>Patrimônio por tier</h2>
+              </div>
+            </div>
+            <div class="tier-stack" aria-label="Distribuição do patrimônio por tier">
+              <i
+                :for={row <- @distribution.tiers}
+                style={"width: #{decimal(row.percent)}%; background: #{row.color}"}
+                title={"#{tier_name(row.tier)}: #{percent(row.percent)}"}
+              >
+              </i>
+            </div>
+            <div class="tier-chart-list">
+              <div
+                :for={row <- @distribution.tiers}
+                id={"tier-allocation-#{row.tier}"}
+                class="tier-chart-row"
+              >
+                <i style={"background: #{row.color}"}></i>
+                <div>
+                  <strong>{tier_name(row.tier)}</strong>
+                  <span>
+                    {row.positions} {if row.positions == 1, do: "posição", else: "posições"}
+                  </span>
+                </div>
+                <b>{percent(row.percent)}</b>
+                <small>{Format.money(row.value)}</small>
+              </div>
+            </div>
+          </article>
+
+          <p :if={@distribution.unquoted > 0} class="distribution-note">
+            <.icon name="hero-information-circle-mini" class="size-4" />
+            {@distribution.unquoted} {if @distribution.unquoted == 1,
+              do: "posição ainda não tem",
+              else: "posições ainda não têm"} cotação e não entra nos gráficos.
+          </p>
+        <% end %>
+      </section>
     </Layouts.app>
     """
   end
