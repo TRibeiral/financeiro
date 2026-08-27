@@ -417,19 +417,16 @@ defmodule FinanceiroWeb.StocksLive do
                         else: "Marcar uma compra recente"
                     }
                   >
-                    <%= if stock.purchase_heat > 0 do %>
-                      <strong>{stock.purchase_heat}</strong>
-                    <% else %>
-                      <.icon name="hero-shopping-bag-mini" class="size-4" />
-                    <% end %>
+                    <strong>{stock.purchase_heat}</strong>
                   </button>
                   <button
                     class="edit-action"
                     phx-click="edit"
                     phx-value-id={stock.id}
+                    aria-label="Editar ação"
                     title="Editar ação"
                   >
-                    <.icon name="hero-pencil-square-mini" class="size-4" /><span>Editar</span>
+                    <.icon name="hero-ellipsis-horizontal-mini" class="size-4" />
                   </button>
                 </div>
               </div>

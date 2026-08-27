@@ -426,6 +426,18 @@ button, select { cursor: pointer; }
 .stock-card.tier-3 { --tier-color: #65abe3; --tier-surface: #b8d8f2; --tier-ink: #10385d; --row-ink: #17324a; --row-muted: #3b5c74; --row-link: #244f6d; }
 .stock-card.tier-4 { --tier-color: #2074b4; --tier-surface: #6fa8d8; --tier-ink: white; --row-ink: #102b43; --row-muted: #183b56; --row-link: #153a55; }
 .stock-card.tier-5 { --tier-color: #0d5797; --tier-surface: #2169aa; --tier-ink: white; --row-ink: white; --row-muted: #e7f3ff; --row-link: white; }
+.stock-card.purchased { background: var(--purchase-surface); box-shadow: inset 0 0 0 1px var(--purchase-border); }
+.stock-card.purchased:before { background: #d52769; }
+.stock-card.purchase-1 { --purchase-surface: #f7e4eb; --purchase-border: #e8bdcd; --row-ink: #28151c; --row-muted: #755260; --row-link: #6d3048; }
+.stock-card.purchase-2 { --purchase-surface: #e8bfd0; --purchase-border: #d88da9; --row-ink: #28151c; --row-muted: #6d4554; --row-link: #65263e; }
+.stock-card.purchase-3 { --purchase-surface: #cf89a5; --purchase-border: #b95279; --row-ink: #2d111c; --row-muted: #552236; --row-link: #4d1930; }
+.stock-card.purchase-4 { --purchase-surface: #a54169; --purchase-border: #853050; --row-ink: white; --row-muted: #f8e7ed; --row-link: white; }
+.stock-card.purchase-5 { --purchase-surface: #861540; --purchase-border: #6f0f34; --row-ink: white; --row-muted: #f7dce6; --row-link: white; }
+.stock-card.purchase-6 { --purchase-surface: #741139; --purchase-border: #600c2e; --row-ink: white; --row-muted: #f7dce6; --row-link: white; }
+.stock-card.purchase-7 { --purchase-surface: #630d32; --purchase-border: #500927; --row-ink: white; --row-muted: #f7dce6; --row-link: white; }
+.stock-card.purchase-8 { --purchase-surface: #530a2b; --purchase-border: #430722; --row-ink: white; --row-muted: #f7dce6; --row-link: white; }
+.stock-card.purchase-9 { --purchase-surface: #450723; --purchase-border: #36051b; --row-ink: white; --row-muted: #f7dce6; --row-link: white; }
+.stock-card.purchase-10 { --purchase-surface: #37051d; --purchase-border: #290316; --row-ink: white; --row-muted: #f7dce6; --row-link: white; }
 .stock-main { height: 100%; display: grid; grid-template-columns: minmax(220px, 1.4fr) minmax(135px, .78fr) .42fr .55fr .65fr .38fr auto; align-items: center; gap: 16px; }
 .stock-main > div:not(.stock-identity):not(.stock-actions):not(.stock-tier) { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .stock-main > div > span, .stock-main > div > small { color: var(--row-muted); font-size: 7px; }
@@ -450,15 +462,15 @@ button, select { cursor: pointer; }
 .stock-main .stock-tier span, .stock-main .stock-tier strong { color: var(--tier-ink); }
 .tier-badge--1 { color: white; background: #cf3e38; border-color: #a92c28; }
 .stock-actions { display: flex; align-items: center; gap: 4px; }
-.stock-actions button { width: auto; min-width: 66px; height: 32px; padding: 0 10px; border: 1px solid #d9dedb; border-radius: 17px; display: flex; align-items: center; justify-content: center; gap: 5px; background: white; color: #56615a; }
-.stock-actions button:hover { border-color: #89978f; background: #f6f8f6; color: #233c30; }
-.stock-actions button span { display: inline; font-size: 8px; font-weight: 750; }
-.stock-actions .buy-action { width: 34px; min-width: 34px; height: 34px; padding: 0; border: 1px solid #cbd3ce; border-radius: 50%; color: #66736c; background: white; }
-.stock-actions .buy-action:hover { color: #2f4439; background: #f5f8f6; border-color: #87968e; }
-.stock-actions .buy-action.has-count { border: 2px solid #d92f70; color: #b5225a; }
+.stock-actions button { width: auto; min-width: 0; height: 28px; padding: 0 5px; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 4px; background: transparent; color: var(--row-muted); }
+.stock-actions button:hover { background: rgba(255,255,255,.38); color: var(--row-ink); }
+.stock-actions button span { display: inline; font-size: 7px; font-weight: 700; }
+.stock-actions .buy-action { width: 24px; min-width: 24px; height: 24px; padding: 0; border: 1px solid #78857e; border-radius: 50%; color: #536159; background: white; }
+.stock-actions .buy-action:hover { color: #283d32; background: #f3f6f4; border-color: #526158; }
+.stock-actions .buy-action.has-count { border: 1.5px solid #d92f70; color: #b5225a; }
 .stock-actions .buy-action.has-count:hover { color: #7d163e; background: #fff0f5; border-color: #a91d4d; }
-.stock-actions .buy-action strong { color: inherit; font-size: 12px; font-weight: 850; }
-.stock-actions .edit-action { min-width: 64px; }
+.stock-actions .buy-action strong { color: inherit; font-size: 9px; font-weight: 850; }
+.stock-actions .edit-action { width: 24px; min-width: 24px; height: 24px; padding: 0; }
 .stocks-empty { min-height: 320px; padding: 35px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .stocks-empty > span { width: 55px; height: 55px; display: grid; place-items: center; border-radius: 15px; background: #eef2eb; color: #607b6d; }
 .stocks-empty strong { margin-top: 14px; font: 500 22px Georgia, serif; }
@@ -531,8 +543,7 @@ button, select { cursor: pointer; }
   .stock-weight { grid-column: 2; }
   .stock-tier { grid-column: 3; }
   .stock-actions { grid-column: 4; }
-  .stock-actions .edit-action { width: 34px; min-width: 34px; padding: 0; }
-  .stock-actions .edit-action span, .tier-legend { display: none; }
+  .tier-legend { display: none; }
   .stock-editor { grid-template-columns: 1fr 1fr; }
   .stock-editor .wide { grid-column: span 2; }
   .stock-editor-actions { grid-column: span 2; justify-content: flex-end; }
