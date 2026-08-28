@@ -1,12 +1,51 @@
 defmodule Financeiro.Investments do
   import Ecto.Query
 
-  alias Financeiro.Investments.Stock
+  alias Financeiro.Investments.{OtherInvestment, Stock}
   alias Financeiro.Repo
 
   @current_result "2T26"
 
   def current_result, do: @current_result
+
+  def list_other_investments do
+    Repo.all(
+      from investment in OtherInvestment,
+        order_by: [asc: investment.inserted_at, asc: investment.id]
+    )
+  end
+
+  def get_other_investment!(id), do: Repo.get!(OtherInvestment, id)
+
+  def change_other_investment(%OtherInvestment{} = investment, attrs \\ %{}) do
+    investment = %{
+      investment
+      | value: OtherInvestment.value_input(investment.value_cents)
+    }
+
+    OtherInvestment.changeset(investment, attrs)
+  end
+
+  def create_other_investment(attrs) do
+    %OtherInvestment{}
+    |> OtherInvestment.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_other_investment(%OtherInvestment{} = investment, attrs) do
+    investment
+    |> OtherInvestment.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_other_investment(%OtherInvestment{} = investment), do: Repo.delete(investment)
+
+  def other_investments_summary(investments) do
+    %{
+      total: Enum.reduce(investments, 0, &(&1.value_cents + &2)),
+      count: length(investments)
+    }
+  end
 
   def list_stocks do
     Repo.all(from s in Stock, order_by: [desc: s.shares, desc: s.tier, asc: s.name])

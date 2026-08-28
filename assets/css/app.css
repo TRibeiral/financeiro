@@ -593,6 +593,17 @@ button, select { cursor: pointer; }
 .cash-empty strong { margin-top: 13px; font: 500 20px Georgia, serif; }
 .cash-empty p { margin: 5px 0 0; color: var(--muted); font-size: 9px; }
 
+/* Other investments */
+.other-investments-heading { margin-bottom: 22px; }
+.other-investments-hero { max-width: 1060px; min-height: 135px; margin: 0 auto 16px; padding: 27px 34px; border-radius: 15px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 40px; background: #213d48; color: white; box-shadow: 0 14px 36px rgba(31, 56, 66, .13); }
+.other-investments-hero > div { display: flex; flex-direction: column; gap: 5px; }
+.other-investments-hero > div:last-child { min-width: 120px; padding-left: 30px; border-left: 1px solid rgba(255,255,255,.14); }
+.other-investments-hero span { color: rgba(255,255,255,.58); font-size: 8px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.other-investments-hero strong { color: #c8efff; font: 500 clamp(28px, 4vw, 38px)/1 Georgia, serif; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.other-investments-hero > div:last-child strong { color: white; font-size: 24px; }
+.other-investments-hero small { color: rgba(255,255,255,.48); font-size: 9px; }
+.other-investment-icon { background: #e8f0f3; color: #426978; }
+
 @media (max-width: 1150px) {
   .filter-panel { grid-template-columns: repeat(4, 1fr); }
   .transaction-table th:nth-child(3), .transaction-table td:nth-child(3) { display: none; }
@@ -608,7 +619,7 @@ button, select { cursor: pointer; }
   .app-shell { display: block; }
   .sidebar { position: sticky; bottom: 0; top: auto; height: 66px; padding: 7px 10px; border: 0; border-top: 1px solid var(--line); flex-direction: row; order: 2; }
   .brand, .sidebar-foot { display: none; }
-  .sidebar nav { width: 100%; display: grid; grid-template-columns: repeat(7, 1fr); }
+  .sidebar nav { width: 100%; display: grid; grid-template-columns: repeat(8, 1fr); }
   .sidebar nav a { min-height: 52px; padding: 4px; flex-direction: column; justify-content: center; gap: 2px; font-size: 8px; }
   .nav-badge { position: absolute; margin: -24px 0 0 25px; min-width: 17px; height: 17px; font-size: 7px; }
   .app-content { padding: 25px 14px 90px; }
@@ -678,4 +689,6 @@ button, select { cursor: pointer; }
   .cash-row { grid-template-columns: 34px minmax(100px, 1fr) auto; gap: 9px; }
   .cash-row-actions { grid-column: 2 / -1; }
   .cash-row-amount { min-width: 0; font-size: 15px; }
+  .other-investments-hero { padding: 24px; grid-template-columns: 1fr auto; gap: 16px; }
+  .other-investments-hero > div:last-child { min-width: 68px; padding-left: 16px; }
 }

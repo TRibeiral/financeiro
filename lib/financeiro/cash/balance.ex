@@ -2,6 +2,8 @@ defmodule Financeiro.Cash.Balance do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Financeiro.MoneyInput
+
   schema "cash_balances" do
     field :name, :string
     field :amount_cents, :integer
@@ -22,19 +24,12 @@ defmodule Financeiro.Cash.Balance do
     |> maybe_add_amount_error(amount_error)
   end
 
-  def amount_input(nil), do: nil
-
-  def amount_input(cents) when is_integer(cents) do
-    sign = if cents < 0, do: "-", else: ""
-    absolute = abs(cents)
-
-    "#{sign}#{div(absolute, 100)}.#{absolute |> rem(100) |> Integer.to_string() |> String.pad_leading(2, "0")}"
-  end
+  def amount_input(cents), do: MoneyInput.format(cents)
 
   defp normalize_amount(%{"amount" => amount} = attrs, _balance) do
-    case parse_amount(amount) do
+    case MoneyInput.parse(amount) do
       {:ok, cents} -> {Map.put(attrs, "amount_cents", cents), nil}
-      {:error, message} -> {Map.delete(attrs, "amount_cents"), message}
+      :error -> {Map.delete(attrs, "amount_cents"), "use um valor como 1250,00 ou -450,90"}
     end
   end
 
@@ -46,42 +41,6 @@ defmodule Financeiro.Cash.Balance do
     do: {attrs, nil}
 
   defp normalize_amount(attrs, _balance), do: {attrs, "informe o saldo"}
-
-  defp parse_amount(amount) when is_integer(amount), do: {:ok, amount * 100}
-
-  defp parse_amount(amount) when is_binary(amount) do
-    normalized =
-      amount
-      |> String.trim()
-      |> String.replace("R$", "")
-      |> String.replace(" ", "")
-      |> String.replace("−", "-")
-      |> normalize_separators()
-
-    case Regex.run(~r/^([+-]?)(\d+)(?:\.(\d{1,2}))?$/, normalized) do
-      [_, sign, whole] -> {:ok, signed_cents(sign, whole, "")}
-      [_, sign, whole, decimals] -> {:ok, signed_cents(sign, whole, decimals)}
-      _ -> {:error, "use um valor como 1250,00 ou -450,90"}
-    end
-  end
-
-  defp parse_amount(_amount), do: {:error, "informe um saldo válido"}
-
-  defp normalize_separators(value) do
-    if String.contains?(value, ",") do
-      value |> String.replace(".", "") |> String.replace(",", ".")
-    else
-      value
-    end
-  end
-
-  defp signed_cents(sign, whole, decimals) do
-    cents =
-      String.to_integer(whole) * 100 +
-        (decimals |> String.pad_trailing(2, "0") |> String.to_integer())
-
-    if sign == "-", do: -cents, else: cents
-  end
 
   defp maybe_add_amount_error(changeset, nil), do: changeset
 

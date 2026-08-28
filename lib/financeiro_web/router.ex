@@ -22,6 +22,7 @@ defmodule FinanceiroWeb.Router do
     live "/review", ReviewLive
     live "/insights", InsightsLive
     live "/stocks", StocksLive
+    live "/other-investments", OtherInvestmentsLive
     live "/cash", CashLive
     live "/imports", ImportsLive
   end

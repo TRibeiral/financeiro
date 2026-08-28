@@ -31,6 +31,8 @@ defmodule Financeiro.ImporterTest do
     assert InternalTransfer.flow_type("COR IRRF OPER. B3 17/08", 168, "conta") == "excluded"
     assert InternalTransfer.flow_type("COR JSCP PETR4", -14_458, "conta") == "excluded"
     assert InternalTransfer.flow_type("Crédito em conta", -4_008, "conta") == "excluded"
+    assert InternalTransfer.flow_type("Aplicação RDB", 800_000, "conta") == "excluded"
+    assert InternalTransfer.flow_type("Débito em conta", 19_709, "conta") == "excluded"
     assert InternalTransfer.flow_type("SALDO ANTERIOR", -396_793, "conta") == "excluded"
 
     assert InternalTransfer.flow_type("SALDO TOTAL DISPONÃVEL DIA", -3_327_940, "conta") ==

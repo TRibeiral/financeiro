@@ -20,6 +20,8 @@ defmodule Financeiro.Ledger.InternalTransfer do
   ]
 
   @excluded_movements [
+    "aplicacao rdb",
+    "debito em conta",
     "saldo anterior",
     "saldo total disponavel dia",
     "credito em conta",

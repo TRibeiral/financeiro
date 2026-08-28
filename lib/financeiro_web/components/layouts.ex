@@ -61,6 +61,12 @@ defmodule FinanceiroWeb.Layouts do
           <.link navigate={~p"/stocks"} class={@active == "stocks" && "active"}>
             <.icon name="hero-presentation-chart-line-mini" class="size-5" />Ações
           </.link>
+          <.link
+            navigate={~p"/other-investments"}
+            class={@active == "other-investments" && "active"}
+          >
+            <.icon name="hero-circle-stack-mini" class="size-5" />Outros investimentos
+          </.link>
           <.link navigate={~p"/cash"} class={@active == "cash" && "active"}>
             <.icon name="hero-banknotes-mini" class="size-5" />Caixa
           </.link>
