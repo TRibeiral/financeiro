@@ -24,6 +24,7 @@ defmodule FinanceiroWeb.Router do
     live "/stocks", StocksLive
     live "/other-investments", OtherInvestmentsLive
     live "/cash", CashLive
+    live "/budgets", BudgetsLive
     live "/cash-flow", CashFlowLive
     live "/imports", ImportsLive
   end
