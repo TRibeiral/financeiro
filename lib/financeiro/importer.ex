@@ -3,7 +3,7 @@ defmodule Financeiro.Importer do
 
   alias Financeiro.Repo
   alias Financeiro.Importer.Parsers
-  alias Financeiro.Ledger.{Import, LunaClassifier, Transaction}
+  alias Financeiro.Ledger.{Import, LunaAnomalyDetector, LunaClassifier, Transaction}
 
   @extensions ~w(.csv .xlsx .pdf)
 
@@ -114,13 +114,22 @@ defmodule Financeiro.Importer do
         {:error, reason, _summary} -> "Classificação Luna pendente: #{reason}"
       end
 
+    anomaly_error =
+      case LunaAnomalyDetector.inspect_import(transaction_ids) do
+        {:ok, _summary} -> nil
+        {:error, reason} -> "Análise de anomalias Luna pendente: #{reason}"
+      end
+
+    import_error =
+      [classification_error, anomaly_error] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
+
     {:ok, import} =
       import
       |> Import.changeset(%{
         status: "completed",
         inserted_count: inserted,
         duplicate_count: duplicates,
-        error: classification_error
+        error: if(import_error == "", do: nil, else: import_error)
       })
       |> Repo.update()
 

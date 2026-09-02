@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "integer" },
+          "possible_changed_transaction": { "type": "boolean" },
+          "candidate_id": { "type": ["integer", "null"] },
+          "confidence": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "reason": { "type": "string", "maxLength": 240 }
+        },
+        "required": ["id", "possible_changed_transaction", "candidate_id", "confidence", "reason"]
+      }
+    }
+  },
+  "required": ["alerts"]
+}

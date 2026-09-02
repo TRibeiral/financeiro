@@ -21,6 +21,22 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     assert Repo.reload!(transaction).review_status == "reviewed"
   end
 
+  test "shows Luna's anomaly alert on a suspicious expense", %{conn: conn} do
+    transaction_fixture(%{
+      anomaly_alert: true,
+      anomaly_confidence: 92,
+      anomaly_reason: "Data e valor mudaram entre exportações",
+      anomaly_candidate_id: 123
+    })
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(
+             view,
+             "[title*='Possível lançamento alterado (92%)'] .anomaly-alert-icon"
+           )
+  end
+
   test "offers and persists the Projetos category", %{conn: conn} do
     transaction = transaction_fixture()
     {:ok, view, _html} = live(conn, ~p"/")

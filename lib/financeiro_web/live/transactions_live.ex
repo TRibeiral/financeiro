@@ -220,6 +220,12 @@ defmodule FinanceiroWeb.TransactionsLive do
               <td>
                 <div class="description-cell">
                   <i class={["status-dot", transaction.review_status]}></i>
+                  <span :if={transaction.anomaly_alert} title={anomaly_title(transaction)}>
+                    <.icon
+                      name="hero-exclamation-triangle-mini"
+                      class="anomaly-alert-icon size-5"
+                    />
+                  </span>
                   <div>
                     <strong>{transaction.description}</strong><span>{flow_label(transaction.flow_type)} · {transaction.account_ref}</span>
                   </div>
@@ -309,6 +315,11 @@ defmodule FinanceiroWeb.TransactionsLive do
   defp classification_label(%{classification_source: "luna"}), do: "Luna"
   defp classification_label(%{classification_source: "luna_error"}), do: "Luna pendente"
   defp classification_label(_), do: "estimativa"
+
+  defp anomaly_title(transaction) do
+    confidence = transaction.anomaly_confidence || 0
+    "Possível lançamento alterado (#{confidence}%): #{transaction.anomaly_reason}"
+  end
 
   defp flow_label("expense"), do: "despesa"
   defp flow_label("refund"), do: "estorno"

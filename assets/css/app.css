@@ -193,6 +193,7 @@ button, select { cursor: pointer; }
 .status-dot { flex: 0 0 auto; width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: #92a296; }
 .status-dot.pending { background: #e7a16e; box-shadow: 0 0 0 3px #fbeddf; }
 .status-dot.reviewed { background: #6a9c7f; }
+.anomaly-alert-icon { flex: 0 0 auto; color: #d97706; margin-top: -2px; cursor: help; }
 .income-marker { flex: 0 0 auto; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: #e3f0e7; color: #3f7b5d; font-size: 11px; font-style: normal; font-weight: 800; }
 .income-table .amount.credit { color: #3f7b5d; }
 .category-select { min-width: 112px; height: 27px; padding: 0 24px 0 9px; border: 1px solid #dde1dc; border-radius: 99px; background: #f4f6f2; color: #3d4a43; font-size: 9px; font-weight: 750; }

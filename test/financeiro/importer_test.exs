@@ -26,6 +26,9 @@ defmodule Financeiro.ImporterTest do
     assert InternalTransfer.flow_type("PIX TRANSF Thiago 18/08", -450_000, "conta") ==
              "transfer"
 
+    assert InternalTransfer.flow_type("PIX TRANSF Ana Cla28/08", 450_000, "conta") ==
+             "transfer"
+
     assert InternalTransfer.flow_type("Pagamento de fatura", 128_837, "conta") == "transfer"
     assert InternalTransfer.flow_type("REND PAGO APLIC AUT MAIS", -22, "conta") == "excluded"
     assert InternalTransfer.flow_type("COR IRRF OPER. B3 17/08", 168, "conta") == "excluded"

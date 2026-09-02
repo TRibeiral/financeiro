@@ -29,6 +29,10 @@ defmodule Financeiro.Ledger.Transaction do
     field :source_identifier, :string
     field :fingerprint, :string
     field :raw_data, :map, default: %{}
+    field :anomaly_alert, :boolean, default: false
+    field :anomaly_reason, :string
+    field :anomaly_confidence, :integer
+    field :anomaly_candidate_id, :integer
 
     belongs_to :import, Financeiro.Ledger.Import
     timestamps(type: :utc_datetime)
@@ -61,6 +65,10 @@ defmodule Financeiro.Ledger.Transaction do
       :source_identifier,
       :fingerprint,
       :raw_data,
+      :anomaly_alert,
+      :anomaly_reason,
+      :anomaly_confidence,
+      :anomaly_candidate_id,
       :import_id
     ])
     |> validate_required([
@@ -81,6 +89,10 @@ defmodule Financeiro.Ledger.Transaction do
     |> validate_inclusion(:flow_type, @flow_types)
     |> validate_inclusion(:review_status, @review_statuses)
     |> validate_number(:classification_confidence,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+    |> validate_number(:anomaly_confidence,
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 100
     )

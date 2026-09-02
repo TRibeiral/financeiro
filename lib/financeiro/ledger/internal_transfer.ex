@@ -7,6 +7,7 @@ defmodule Financeiro.Ledger.InternalTransfer do
     "thiago carneiro ribeiral",
     "ana clara paiva",
     "ana clara de paiva",
+    "transf ana cla",
     "transf thiago"
   ]
 
