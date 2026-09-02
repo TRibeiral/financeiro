@@ -14,6 +14,19 @@ defmodule Financeiro.MonthPeriod do
 
   def current_bounds, do: bounds(current_date())
 
+  def period_start(%Date{} = date), do: date |> bounds() |> elem(0)
+
+  def period_end(%Date{} = period_start) do
+    Date.add(period_start, Date.days_in_month(period_start) - 1)
+  end
+
+  def starts_between(%Date{} = first_start, %Date{} = last_start) do
+    Stream.iterate(first_start, &next_start/1)
+    |> Enum.take_while(&(Date.compare(&1, last_start) != :gt))
+  end
+
+  def previous_start(%Date{} = period_start), do: period_start |> Date.add(-1) |> period_start()
+
   def bounds(%Date{} = date) do
     period_month =
       if date.day >= @start_day do
@@ -36,4 +49,6 @@ defmodule Financeiro.MonthPeriod do
       "to" => Date.to_iso8601(period_end)
     }
   end
+
+  defp next_start(period_start), do: Date.add(period_start, Date.days_in_month(period_start))
 end
