@@ -22,9 +22,7 @@ defmodule FinanceiroWeb.StocksLive do
         edit_form: nil,
         purchase_menu_id: nil,
         refreshing: false,
-        refreshing_stock_ids: MapSet.new(),
-        refresh_updated: 0,
-        refresh_failures: []
+        refreshing_stock_ids: MapSet.new()
       )
       |> new_form()
       |> reload()
@@ -142,20 +140,17 @@ defmodule FinanceiroWeb.StocksLive do
 
       stocks ->
         provider = Application.fetch_env!(:financeiro, :stock_quote_provider)
+        requested = Enum.map(stocks, &{&1.id, &1.ticker})
 
         socket =
           assign(socket,
             refreshing: true,
-            refreshing_stock_ids: MapSet.new(stocks, & &1.id),
-            refresh_updated: 0,
-            refresh_failures: []
+            refreshing_stock_ids: MapSet.new(stocks, & &1.id)
           )
 
         socket =
-          Enum.reduce(stocks, socket, fn stock, socket ->
-            start_async(socket, {:refresh_quote, stock.id, stock.ticker}, fn ->
-              provider.fetch_quotes([stock.ticker])
-            end)
+          start_async(socket, {:refresh_quotes, requested}, fn ->
+            provider.fetch_quotes(Enum.map(requested, &elem(&1, 1)))
           end)
 
         {:noreply, socket}
@@ -163,74 +158,90 @@ defmodule FinanceiroWeb.StocksLive do
   end
 
   @impl true
-  def handle_async({:refresh_quote, id, ticker}, {:ok, {:ok, quotes}}, socket) do
-    case Investments.apply_quotes(quotes) do
-      {:ok, count} when count > 0 ->
-        {:noreply, finish_quote_refresh(socket, id, ticker, count)}
+  def handle_async(
+        {:refresh_quotes, requested},
+        {:ok, {:ok, quotes, failures}},
+        socket
+      ) do
+    {:noreply, apply_quote_refresh(socket, requested, quotes, failures)}
+  end
 
-      {:ok, _count} ->
-        {:noreply, finish_quote_refresh(socket, id, ticker, 0, "cotação não encontrada")}
+  def handle_async({:refresh_quotes, requested}, {:ok, {:ok, quotes}}, socket) do
+    quoted = MapSet.new(quotes, &quote_ticker/1)
+
+    failures =
+      requested
+      |> Enum.map(&elem(&1, 1))
+      |> Enum.reject(&MapSet.member?(quoted, &1))
+      |> Enum.map(&{&1, "cotação não encontrada"})
+
+    {:noreply, apply_quote_refresh(socket, requested, quotes, failures)}
+  end
+
+  def handle_async({:refresh_quotes, requested}, {:ok, {:error, reason}}, socket) do
+    failures = Enum.map(requested, fn {_id, ticker} -> {ticker, to_string(reason)} end)
+    {:noreply, finish_quote_refresh(socket, 0, failures)}
+  end
+
+  def handle_async({:refresh_quotes, requested}, {:exit, reason}, socket) do
+    failures = Enum.map(requested, fn {_id, ticker} -> {ticker, inspect(reason)} end)
+    {:noreply, finish_quote_refresh(socket, 0, failures)}
+  end
+
+  defp apply_quote_refresh(socket, requested, quotes, failures) do
+    reported = MapSet.new(failures, fn {ticker, _reason} -> ticker end)
+    quoted = MapSet.new(quotes, &quote_ticker/1)
+
+    missing =
+      requested
+      |> Enum.map(&elem(&1, 1))
+      |> Enum.reject(&(MapSet.member?(reported, &1) or MapSet.member?(quoted, &1)))
+      |> Enum.map(&{&1, "cotação não encontrada"})
+
+    case Investments.apply_quotes(quotes) do
+      {:ok, updated} ->
+        finish_quote_refresh(socket, updated, failures ++ missing)
 
       {:error, reason} ->
-        {:noreply, finish_quote_refresh(socket, id, ticker, 0, inspect(reason))}
+        all_failures =
+          Enum.map(requested, fn {_id, ticker} ->
+            {ticker, "não foi possível salvar: #{inspect(reason)}"}
+          end)
+
+        finish_quote_refresh(socket, 0, all_failures)
     end
   end
 
-  def handle_async({:refresh_quote, id, ticker}, {:ok, {:error, reason}}, socket),
-    do: {:noreply, finish_quote_refresh(socket, id, ticker, 0, reason)}
-
-  def handle_async({:refresh_quote, id, ticker}, {:exit, reason}, socket),
-    do: {:noreply, finish_quote_refresh(socket, id, ticker, 0, inspect(reason))}
-
-  defp finish_quote_refresh(socket, id, ticker, updated, failure \\ nil) do
-    failures =
-      if failure do
-        [{ticker, to_string(failure)} | socket.assigns.refresh_failures]
-      else
-        socket.assigns.refresh_failures
-      end
-
-    socket
-    |> assign(
-      refreshing_stock_ids: MapSet.delete(socket.assigns.refreshing_stock_ids, id),
-      refresh_updated: socket.assigns.refresh_updated + updated,
-      refresh_failures: failures
-    )
-    |> reload()
-    |> maybe_finish_quote_refresh()
-  end
-
-  defp maybe_finish_quote_refresh(%{assigns: %{refreshing_stock_ids: pending}} = socket) do
-    if MapSet.size(pending) > 0 do
+  defp finish_quote_refresh(socket, updated, failures) do
+    socket =
       socket
-    else
-      socket = assign(socket, refreshing: false)
-      updated = socket.assigns.refresh_updated
-      failures = Enum.reverse(socket.assigns.refresh_failures)
+      |> assign(refreshing: false, refreshing_stock_ids: MapSet.new())
+      |> reload()
 
-      case failures do
-        [] ->
-          put_flash(socket, :info, quote_success_message(updated))
+    case failures do
+      [] ->
+        put_flash(socket, :info, quote_success_message(updated))
 
-        failures when updated > 0 ->
-          put_flash(
-            socket,
-            :error,
-            "#{quote_success_message(updated)}; #{quote_failure_message(failures)}"
-          )
+      failures when updated > 0 ->
+        put_flash(
+          socket,
+          :error,
+          "#{quote_success_message(updated)}; #{quote_failure_message(failures)}"
+        )
 
-        failures ->
-          put_flash(
-            socket,
-            :error,
-            "Não foi possível atualizar: #{quote_failure_message(failures)}"
-          )
-      end
+      failures ->
+        put_flash(
+          socket,
+          :error,
+          "Nenhuma cotação foi alterada: #{quote_failure_message(failures)}"
+        )
     end
   end
 
-  defp quote_success_message(1), do: "1 cotação atualizada com Luna"
-  defp quote_success_message(count), do: "#{count} cotações atualizadas com Luna"
+  defp quote_ticker(quote), do: quote[:ticker] || quote["ticker"]
+
+  defp quote_success_message(1), do: "1 cotação atualizada"
+  defp quote_success_message(count), do: "#{count} cotações atualizadas"
 
   defp quote_failure_message(failures) do
     count = length(failures)
@@ -432,7 +443,7 @@ defmodule FinanceiroWeb.StocksLive do
             disabled={@summary.owned == 0 or @refreshing}
           >
             <.icon name="hero-arrow-path-mini" class={["size-4", @refreshing && "spin"]} />
-            {if @refreshing, do: "Luna pesquisando…", else: "Atualizar cotações"}
+            {if @refreshing, do: "Atualizando…", else: "Atualizar cotações"}
           </button>
         </div>
       </div>

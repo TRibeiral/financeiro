@@ -6,12 +6,12 @@ defmodule FinanceiroWeb.StocksLiveTest do
   alias Financeiro.Repo
 
   defmodule ControlledQuoteProvider do
-    def fetch_quotes([ticker]) do
+    def fetch_quotes(tickers) do
       test_pid = Process.whereis(:stock_quote_test)
-      send(test_pid, {:quote_started, ticker, self()})
+      send(test_pid, {:quote_started, tickers, self()})
 
       receive do
-        {:return_quote, ^ticker, result} -> result
+        {:return_quotes, result} -> result
       after
         1_000 -> {:error, "test timeout"}
       end
@@ -63,7 +63,7 @@ defmodule FinanceiroWeb.StocksLiveTest do
     refute html =~ "Petrobras"
   end
 
-  test "refreshes quotes through the configured Luna provider", %{conn: conn} do
+  test "refreshes owned-stock quotes through the configured provider", %{conn: conn} do
     {:ok, stock} =
       Investments.create_stock(%{
         name: "Petrobras",
@@ -94,12 +94,10 @@ defmodule FinanceiroWeb.StocksLiveTest do
     assert render(view) =~ "R$ 3.750,00"
     assert render(view) =~ "100.0%"
     refute render(view) =~ "allocation-card"
-    assert render(view) =~ "1 cotação atualizada com Luna"
+    assert render(view) =~ "1 cotação atualizada"
   end
 
-  test "runs one quote task per stock and clears each position loader independently", %{
-    conn: conn
-  } do
+  test "fetches a batch, preserves failed quotes and identifies failures", %{conn: conn} do
     original_provider = Application.fetch_env!(:financeiro, :stock_quote_provider)
     Application.put_env(:financeiro, :stock_quote_provider, ControlledQuoteProvider)
     Process.register(self(), :stock_quote_test)
@@ -130,36 +128,37 @@ defmodule FinanceiroWeb.StocksLiveTest do
         last_result: "2T26"
       })
 
+    {:ok, 1} =
+      Investments.apply_quotes([
+        %{ticker: "VALE3", price_cents: 6_000, source: "Cotação anterior"}
+      ])
+
     {:ok, view, _html} = live(conn, ~p"/stocks")
     view |> element("#refresh-quotes") |> render_click()
 
-    tasks =
-      Enum.reduce(1..2, %{}, fn _, tasks ->
-        assert_receive {:quote_started, ticker, task}, 500
-        Map.put(tasks, ticker, task)
-      end)
+    assert_receive {:quote_started, tickers, task}, 500
+    assert Enum.sort(tickers) == ["PETR4", "VALE3"]
+    refute_receive {:quote_started, _, _}, 100
 
     html = render(view)
     assert html =~ "stock-position-loading-#{petrobras.id}"
     assert html =~ "stock-position-loading-#{vale.id}"
 
-    send(tasks["PETR4"], {
-      :return_quote,
-      "PETR4",
-      {:ok, [%{ticker: "PETR4", price_cents: 3_750, source: "Cotação de teste"}]}
+    send(task, {
+      :return_quotes,
+      {:ok, [%{ticker: "PETR4", price_cents: 3_750, source: "Cotação de teste"}],
+       [{"VALE3", "cotação não encontrada"}]}
     })
 
-    assert eventually(fn -> Repo.reload!(petrobras).quote_cents == 3_750 end)
-    html = render(view)
-    refute html =~ "stock-position-loading-#{petrobras.id}"
-    assert html =~ "stock-position-loading-#{vale.id}"
-
-    send(tasks["VALE3"], {:return_quote, "VALE3", {:error, "fonte indisponível"}})
     html = render_async(view, 1_000)
 
+    refute html =~ "stock-position-loading-#{petrobras.id}"
     refute html =~ "stock-position-loading-#{vale.id}"
-    assert html =~ "1 cotação atualizada com Luna; 1 falhou"
-    assert Repo.reload!(vale).quote_cents == nil
+    assert html =~ "1 cotação atualizada; 1 falhou"
+    assert html =~ "VALE3: cotação não encontrada"
+    assert Repo.reload!(petrobras).quote_cents == 3_750
+    assert Repo.reload!(vale).quote_cents == 6_000
+    assert Repo.reload!(vale).quote_source == "Cotação anterior"
   end
 
   test "sorts by tier and position by default and can sort by position only", %{conn: conn} do
@@ -322,17 +321,4 @@ defmodule FinanceiroWeb.StocksLiveTest do
     |> Regex.scan(html, capture: :all_but_first)
     |> Enum.map(fn [id] -> String.to_integer(id) end)
   end
-
-  defp eventually(fun, attempts \\ 20)
-
-  defp eventually(fun, attempts) when attempts > 0 do
-    if fun.() do
-      true
-    else
-      Process.sleep(10)
-      eventually(fun, attempts - 1)
-    end
-  end
-
-  defp eventually(_fun, 0), do: false
 end

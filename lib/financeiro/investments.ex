@@ -97,6 +97,7 @@ defmodule Financeiro.Investments do
         ticker = quote[:ticker] || quote["ticker"]
         price_cents = quote[:price_cents] || quote["price_cents"]
         source = quote[:source] || quote["source"]
+        quoted_at = quote[:quoted_at] || quote["quoted_at"] || now
 
         if is_binary(ticker) and is_integer(price_cents) and price_cents > 0 do
           {updated, _} =
@@ -105,7 +106,7 @@ defmodule Financeiro.Investments do
               set: [
                 quote_cents: price_cents,
                 quote_source: source,
-                quote_refreshed_at: now,
+                quote_refreshed_at: quoted_at,
                 updated_at: now
               ]
             )

@@ -69,6 +69,12 @@ Créditos genéricos, dividendos/JSCP, rendimentos automáticos e operações ou
 
 Linhas informativas de extrato, como `SALDO ANTERIOR` e `SALDO TOTAL DISPONÍVEL DIA`, também são excluídas dos cálculos. Resgates de RDB/CDB são tratados como transferências internas e não contam como entradas.
 
+## Cotações
+
+O botão **Atualizar cotações** consulta as ações da carteira em lote no Yahoo Finance. Os códigos da B3 recebem o sufixo `.SA`, e os valores retornados têm atraso informado de 15 minutos. Não há chave de API nem cache adicional: o preço e o horário de mercado mais recentes ficam salvos no SQLite.
+
+Se o Yahoo omitir ou rejeitar algum código, as demais cotações são atualizadas normalmente. O valor anterior do código que falhou é preservado, e uma notificação identifica cada falha.
+
 ## Verificação
 
 ```bash

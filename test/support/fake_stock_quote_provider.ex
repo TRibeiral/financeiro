@@ -3,7 +3,7 @@ defmodule Financeiro.FakeStockQuoteProvider do
     {:ok,
      Enum.map(tickers, fn ticker ->
        %{ticker: ticker, price_cents: price_for(ticker), source: "Cotação de teste"}
-     end)}
+     end), []}
   end
 
   defp price_for("PETR4"), do: 3_750
