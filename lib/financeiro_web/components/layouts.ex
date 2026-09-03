@@ -70,6 +70,9 @@ defmodule FinanceiroWeb.Layouts do
           <.link navigate={~p"/cash"} class={@active == "cash" && "active"}>
             <.icon name="hero-banknotes-mini" class="size-5" />Caixa
           </.link>
+          <.link navigate={~p"/snapshots"} class={@active == "snapshots" && "active"}>
+            <.icon name="hero-chart-bar-square-mini" class="size-5" />Patrimônio
+          </.link>
           <.link navigate={~p"/budgets"} class={@active == "budgets" && "active"}>
             <.icon name="hero-calculator-mini" class="size-5" />Orçamentos
           </.link>
