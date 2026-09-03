@@ -45,18 +45,23 @@ defmodule FinanceiroWeb.Layouts do
           <div><strong>financeiro</strong><small>pessoal & local</small></div>
         </.link>
         <nav>
-          <.link navigate={~p"/"} class={@active == "transactions" && "active"}>
-            <.icon name="hero-bars-3-bottom-left-mini" class="size-5" />Despesas
-          </.link>
           <.link navigate={~p"/income"} class={@active == "income" && "active"}>
             <.icon name="hero-arrow-trending-up-mini" class="size-5" />Entradas
           </.link>
-          <.link navigate={~p"/review"} class={@active == "review" && "active"}>
-            <.icon name="hero-check-badge-mini" class="size-5" />Revisar
-            <span :if={@pending > 0} class="nav-badge">{@pending}</span>
+          <.link navigate={~p"/"} class={@active == "transactions" && "active"}>
+            <.icon name="hero-bars-3-bottom-left-mini" class="size-5" />Despesas
           </.link>
           <.link navigate={~p"/insights"} class={@active == "insights" && "active"}>
             <.icon name="hero-chart-bar-square-mini" class="size-5" />Análises
+          </.link>
+          <.link navigate={~p"/budgets"} class={@active == "budgets" && "active"}>
+            <.icon name="hero-calculator-mini" class="size-5" />Orçamentos
+          </.link>
+          <.link navigate={~p"/cash-flow"} class={@active == "cash-flow" && "active"}>
+            <.icon name="hero-arrow-path-rounded-square-mini" class="size-5" />Visão mensal
+          </.link>
+          <.link navigate={~p"/cash"} class={@active == "cash" && "active"}>
+            <.icon name="hero-banknotes-mini" class="size-5" />Caixa
           </.link>
           <.link navigate={~p"/stocks"} class={@active == "stocks" && "active"}>
             <.icon name="hero-presentation-chart-line-mini" class="size-5" />Ações
@@ -67,17 +72,12 @@ defmodule FinanceiroWeb.Layouts do
           >
             <.icon name="hero-circle-stack-mini" class="size-5" />Outros investimentos
           </.link>
-          <.link navigate={~p"/cash"} class={@active == "cash" && "active"}>
-            <.icon name="hero-banknotes-mini" class="size-5" />Caixa
-          </.link>
           <.link navigate={~p"/snapshots"} class={@active == "snapshots" && "active"}>
             <.icon name="hero-chart-bar-square-mini" class="size-5" />Patrimônio
           </.link>
-          <.link navigate={~p"/budgets"} class={@active == "budgets" && "active"}>
-            <.icon name="hero-calculator-mini" class="size-5" />Orçamentos
-          </.link>
-          <.link navigate={~p"/cash-flow"} class={@active == "cash-flow" && "active"}>
-            <.icon name="hero-arrow-path-rounded-square-mini" class="size-5" />Visão mensal
+          <.link navigate={~p"/review"} class={@active == "review" && "active"}>
+            <.icon name="hero-check-badge-mini" class="size-5" />Revisar
+            <span :if={@pending > 0} class="nav-badge">{@pending}</span>
           </.link>
           <.link navigate={~p"/imports"} class={@active == "imports" && "active"}>
             <.icon name="hero-arrow-down-tray-mini" class="size-5" />Importações
