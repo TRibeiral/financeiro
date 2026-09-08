@@ -2,6 +2,7 @@ defmodule Financeiro.ImporterTest do
   use Financeiro.DataCase
 
   alias Financeiro.{Importer, Ledger}
+  alias Financeiro.Importer.Parsers
   alias Financeiro.Ledger.Classifier
   alias Financeiro.Ledger.InternalTransfer
 
@@ -51,6 +52,33 @@ defmodule Financeiro.ImporterTest do
 
     assert InternalTransfer.flow_type("Estorno De Anuidade Dif", -10_500, "cartão") == "refund"
     assert InternalTransfer.flow_type("Oba Hortifruti", 2_550, "conta") == "expense"
+  end
+
+  test "treats received Care Plus Pix transfers as medical refunds" do
+    description =
+      "Transferência recebida pelo Pix - CARE PLUS - 02.725.347/0001-27 - ITAÚ UNIBANCO S.A. (0341) Agência: 9337 Conta: 1576-3"
+
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "financeiro-care-plus-#{System.unique_integer([:positive])}.csv"
+      )
+
+    File.write!(
+      path,
+      "Data,Valor,Identificador,Descrição\n02/09/2026,600.00,care-plus-refund,#{description}\n"
+    )
+
+    on_exit(fn -> File.rm(path) end)
+
+    assert InternalTransfer.flow_type(description, -60_000, "conta") == "refund"
+    assert InternalTransfer.flow_type(description, 60_000, "conta") == "expense"
+    assert Classifier.classify(description) == {"Saude", 82, "rule"}
+
+    assert {:ok, [transaction], _metadata} = Parsers.parse(path, owner: "Teste")
+    assert transaction.amount_cents == -60_000
+    assert transaction.flow_type == "refund"
+    assert transaction.category == "Saude"
   end
 
   test "imports a Nubank account CSV after the boundary and skips the same file twice" do

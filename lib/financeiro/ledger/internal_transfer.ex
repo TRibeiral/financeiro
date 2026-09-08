@@ -43,6 +43,10 @@ defmodule Financeiro.Ledger.InternalTransfer do
     "chargeback"
   ]
 
+  @refund_sources [
+    "care plus"
+  ]
+
   def flow_type(description, amount_cents, source_type) do
     cond do
       excluded?(description) -> "excluded"
@@ -70,6 +74,7 @@ defmodule Financeiro.Ledger.InternalTransfer do
     text = Classifier.merchant_key(description)
 
     amount_cents < 0 and
-      (source_type == "cartão" or Enum.any?(@refund_movements, &String.contains?(text, &1)))
+      (source_type == "cartão" or
+         Enum.any?(@refund_movements ++ @refund_sources, &String.contains?(text, &1)))
   end
 end
