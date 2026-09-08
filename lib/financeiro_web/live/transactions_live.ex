@@ -89,6 +89,7 @@ defmodule FinanceiroWeb.TransactionsLive do
       filters: filters,
       transactions: Ledger.list_transactions(filters),
       totals: Ledger.totals(filters),
+      review_pending: Ledger.pending_count(),
       undo_available: not is_nil(Ledger.latest_undo_action()),
       options: Ledger.filter_options(),
       categories: Ledger.categories()
@@ -98,7 +99,7 @@ defmodule FinanceiroWeb.TransactionsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} active="transactions" pending={@totals.pending}>
+    <Layouts.app flash={@flash} active="transactions" pending={@review_pending}>
       <div class="page-heading">
         <div>
           <p class="eyebrow">
@@ -112,7 +113,7 @@ defmodule FinanceiroWeb.TransactionsLive do
             <.icon name="hero-arrow-uturn-left-mini" class="size-4" /> Desfazer última
           </button>
           <.link navigate={~p"/review"} class="primary-action">
-            Revisar {@totals.pending} pendentes <.icon name="hero-arrow-right-mini" class="size-4" />
+            Revisar {@review_pending} pendências <.icon name="hero-arrow-right-mini" class="size-4" />
           </.link>
         </div>
       </div>

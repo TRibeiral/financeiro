@@ -190,6 +190,55 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     assert Repo.reload!(second).review_status == "pending"
   end
 
+  test "reviews a potential duplicate and keeps both transactions", %{conn: conn} do
+    {first, second} = duplicate_pair_fixture()
+
+    {:ok, view, html} = live(conn, ~p"/review?tab=duplicates")
+
+    assert html =~ "Possíveis duplicados"
+    assert html =~ "Trimble Europe Bv"
+    assert html =~ "TRIMBLE EUROPE BV UPDATED"
+    assert has_element?(view, ".review-tabs button.active", "Possíveis duplicados")
+
+    view
+    |> element("button[phx-click=resolve_duplicate][phx-value-keep=both]")
+    |> render_click()
+
+    assert render(view) =~ "Duplicados revisados"
+    assert Repo.reload!(first).anomaly_resolution == "kept_both"
+    assert Repo.reload!(second).anomaly_resolution == "kept_both"
+    refute Repo.reload!(first).anomaly_alert
+    refute Repo.reload!(second).anomaly_alert
+    assert Repo.reload!(first).flow_type == "expense"
+    assert Repo.reload!(second).flow_type == "expense"
+  end
+
+  test "keeps the selected transaction and excludes the other potential duplicate", %{conn: conn} do
+    {first, second} = duplicate_pair_fixture()
+
+    {:ok, view, _html} = live(conn, ~p"/review")
+    view |> element("button[phx-value-tab=duplicates]") |> render_click()
+
+    view
+    |> element(
+      ".duplicate-transaction[data-transaction-id='#{first.id}'] button[phx-click=resolve_duplicate]"
+    )
+    |> render_click()
+
+    kept = Repo.reload!(first)
+    discarded = Repo.reload!(second)
+
+    assert kept.anomaly_resolution == "kept"
+    assert kept.flow_type == "expense"
+    refute kept.anomaly_alert
+    assert discarded.anomaly_resolution == "discarded"
+    assert discarded.flow_type == "excluded"
+    assert discarded.review_status == "reviewed"
+    refute discarded.anomaly_alert
+    assert Ledger.list_potential_duplicates() == []
+    assert Enum.map(Ledger.list_transactions(), & &1.id) == [first.id]
+  end
+
   test "never exposes transfers, income, credits or B3 on expenses or its totals", %{conn: conn} do
     transaction_fixture()
 
@@ -620,6 +669,34 @@ defmodule FinanceiroWeb.FinanceLiveTest do
       )
 
     %Transaction{} |> Transaction.changeset(attrs) |> Repo.insert!()
+  end
+
+  defp duplicate_pair_fixture do
+    first =
+      transaction_fixture(%{
+        description: "Trimble Europe Bv",
+        merchant_key: "trimble europe bv",
+        occurred_on: ~D[2026-08-18],
+        amount_cents: 12_500,
+        anomaly_alert: true,
+        anomaly_confidence: 94,
+        anomaly_reason: "Data e valor mudaram entre exportações"
+      })
+
+    second =
+      transaction_fixture(%{
+        description: "TRIMBLE EUROPE BV UPDATED",
+        merchant_key: "trimble europe bv",
+        occurred_on: ~D[2026-08-19],
+        amount_cents: 13_000,
+        anomaly_alert: true,
+        anomaly_candidate_id: first.id,
+        anomaly_confidence: 94,
+        anomaly_reason: "Par relacionado: data e valor mudaram entre exportações"
+      })
+
+    {:ok, first} = Ledger.update_transaction(first, %{anomaly_candidate_id: second.id})
+    {first, second}
   end
 
   defp assert_in_order(html, descriptions) do

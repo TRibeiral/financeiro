@@ -25,14 +25,17 @@ defmodule Financeiro.Ledger do
     )
   end
 
-  def pending_count,
-    do:
+  def pending_count do
+    category_count =
       Repo.aggregate(
         from(t in Transaction,
           where: t.review_status == "pending" and t.flow_type in ["expense", "refund"]
         ),
         :count
       )
+
+    category_count + potential_duplicate_count()
+  end
 
   def transaction_count,
     do:
@@ -152,6 +155,86 @@ defmodule Financeiro.Ledger do
         order_by: [desc: t.occurred_on, desc: t.id],
         limit: 500
     )
+  end
+
+  def list_potential_duplicates do
+    Repo.all(
+      from t in Transaction,
+        join: candidate in Transaction,
+        on: candidate.id == t.anomaly_candidate_id,
+        where:
+          t.anomaly_alert == true and candidate.anomaly_alert == true and
+            is_nil(t.anomaly_resolution) and is_nil(candidate.anomaly_resolution) and
+            t.id < candidate.id,
+        order_by: [desc: t.occurred_on, desc: t.id],
+        select: %{first: t, second: candidate}
+    )
+  end
+
+  def potential_duplicate_count do
+    Repo.aggregate(
+      from(t in Transaction,
+        join: candidate in Transaction,
+        on: candidate.id == t.anomaly_candidate_id,
+        where:
+          t.anomaly_alert == true and candidate.anomaly_alert == true and
+            is_nil(t.anomaly_resolution) and is_nil(candidate.anomaly_resolution) and
+            t.id < candidate.id
+      ),
+      :count
+    )
+  end
+
+  def resolve_potential_duplicate(first_id, second_id, keep) do
+    Repo.transaction(fn ->
+      first = Repo.get(Transaction, first_id)
+      second = Repo.get(Transaction, second_id)
+
+      unless valid_duplicate_pair?(first, second) do
+        Repo.rollback(:invalid_duplicate_pair)
+      end
+
+      case keep do
+        :both ->
+          {:ok, _} = update_transaction(first, resolved_duplicate_attrs("kept_both"))
+          {:ok, _} = update_transaction(second, resolved_duplicate_attrs("kept_both"))
+          %{kept: [first.id, second.id], discarded: nil}
+
+        keep_id when keep_id in [first.id, second.id] ->
+          {kept, discarded} = if keep_id == first.id, do: {first, second}, else: {second, first}
+          {:ok, _} = update_transaction(kept, resolved_duplicate_attrs("kept"))
+
+          {:ok, _} =
+            update_transaction(
+              discarded,
+              resolved_duplicate_attrs("discarded")
+              |> Map.merge(%{flow_type: "excluded", review_status: "reviewed"})
+            )
+
+          %{kept: [kept.id], discarded: discarded.id}
+
+        _ ->
+          Repo.rollback(:invalid_keep_choice)
+      end
+    end)
+  end
+
+  defp valid_duplicate_pair?(%Transaction{} = first, %Transaction{} = second) do
+    first.anomaly_alert and second.anomaly_alert and is_nil(first.anomaly_resolution) and
+      is_nil(second.anomaly_resolution) and
+      (first.anomaly_candidate_id == second.id or second.anomaly_candidate_id == first.id)
+  end
+
+  defp valid_duplicate_pair?(_, _), do: false
+
+  defp resolved_duplicate_attrs(resolution) do
+    %{
+      anomaly_alert: false,
+      anomaly_candidate_id: nil,
+      anomaly_confidence: nil,
+      anomaly_reason: nil,
+      anomaly_resolution: resolution
+    }
   end
 
   def list_income(filters \\ %{}) do

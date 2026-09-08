@@ -15,7 +15,8 @@ defmodule Financeiro.Ledger.LunaAnomalyDetector do
           where:
             t.id in ^ids and t.flow_type in ["expense", "refund"] and
               t.source_type == "cartão" and
-              (is_nil(t.source_identifier) or t.source_identifier == ""),
+              (is_nil(t.source_identifier) or t.source_identifier == "") and
+              is_nil(t.anomaly_resolution),
           order_by: t.id
       )
 
@@ -70,6 +71,7 @@ defmodule Financeiro.Ledger.LunaAnomalyDetector do
               t.bank == ^transaction.bank and
               t.owner == ^transaction.owner and t.source_type == ^transaction.source_type and
               t.merchant_key == ^transaction.merchant_key and
+              is_nil(t.anomaly_resolution) and
               t.flow_type in ["expense", "refund"] and t.occurred_on >= ^from_date and
               t.occurred_on <= ^to_date,
           order_by: [desc: t.occurred_on, desc: t.id],
@@ -197,7 +199,9 @@ defmodule Financeiro.Ledger.LunaAnomalyDetector do
   defp persist(alerts) do
     Repo.transaction(fn ->
       Enum.each(alerts, fn alert ->
-        from(t in Transaction, where: t.id == ^alert.id)
+        from(t in Transaction,
+          where: t.id == ^alert.id and is_nil(t.anomaly_resolution)
+        )
         |> Repo.update_all(
           set: [
             anomaly_alert: alert.flagged,
@@ -209,7 +213,9 @@ defmodule Financeiro.Ledger.LunaAnomalyDetector do
         )
 
         if alert.flagged do
-          from(t in Transaction, where: t.id == ^alert.candidate_id)
+          from(t in Transaction,
+            where: t.id == ^alert.candidate_id and is_nil(t.anomaly_resolution)
+          )
           |> Repo.update_all(
             set: [
               anomaly_alert: true,

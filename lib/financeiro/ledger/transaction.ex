@@ -33,6 +33,7 @@ defmodule Financeiro.Ledger.Transaction do
     field :anomaly_reason, :string
     field :anomaly_confidence, :integer
     field :anomaly_candidate_id, :integer
+    field :anomaly_resolution, :string
 
     belongs_to :import, Financeiro.Ledger.Import
     timestamps(type: :utc_datetime)
@@ -69,6 +70,7 @@ defmodule Financeiro.Ledger.Transaction do
       :anomaly_reason,
       :anomaly_confidence,
       :anomaly_candidate_id,
+      :anomaly_resolution,
       :import_id
     ])
     |> validate_required([
@@ -95,6 +97,9 @@ defmodule Financeiro.Ledger.Transaction do
     |> validate_number(:anomaly_confidence,
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 100
+    )
+    |> validate_inclusion(:anomaly_resolution, ["kept_both", "kept", "discarded"],
+      allow_nil: true
     )
     |> unique_constraint(:fingerprint)
   end
