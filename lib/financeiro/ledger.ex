@@ -11,7 +11,6 @@ defmodule Financeiro.Ledger do
     |> where([t], t.flow_type in ["expense", "refund"])
     |> filter_query(filters)
     |> order_transactions(Map.get(filters, "sort"))
-    |> limit(500)
     |> Repo.all()
   end
 
@@ -160,7 +159,6 @@ defmodule Financeiro.Ledger do
     |> where([t], t.flow_type == "income")
     |> filter_query(filters)
     |> order_by([t], desc: t.occurred_on, desc: t.id)
-    |> limit(500)
     |> Repo.all()
   end
 

@@ -296,6 +296,102 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     ])
   end
 
+  test "shows the full expense history by default and offers financial-month shortcuts", %{
+    conn: conn
+  } do
+    {current_start, _current_end} = Financeiro.MonthPeriod.current_bounds()
+    previous_start = Financeiro.MonthPeriod.previous_start(current_start)
+    older_start = Financeiro.MonthPeriod.previous_start(previous_start)
+
+    transaction_fixture(%{occurred_on: current_start, description: "Despesa deste mês"})
+    transaction_fixture(%{occurred_on: previous_start, description: "Despesa do mês anterior"})
+    transaction_fixture(%{occurred_on: older_start, description: "Despesa histórica"})
+
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert html =~ "Despesa deste mês"
+    assert html =~ "Despesa do mês anterior"
+    assert html =~ "Despesa histórica"
+    assert has_element?(view, ".period-quick-filter button.active", "Todo o histórico")
+
+    current_html =
+      view
+      |> element(".period-quick-filter button[phx-value-period=current]")
+      |> render_click()
+
+    assert current_html =~ "Despesa deste mês"
+    refute current_html =~ "Despesa do mês anterior"
+    refute current_html =~ "Despesa histórica"
+
+    previous_html =
+      view
+      |> element(".period-quick-filter button[phx-value-period=previous]")
+      |> render_click()
+
+    refute previous_html =~ "Despesa deste mês"
+    assert previous_html =~ "Despesa do mês anterior"
+    refute previous_html =~ "Despesa histórica"
+
+    all_html =
+      view
+      |> element(".period-quick-filter button[phx-value-period=all]")
+      |> render_click()
+
+    assert all_html =~ "Despesa deste mês"
+    assert all_html =~ "Despesa do mês anterior"
+    assert all_html =~ "Despesa histórica"
+  end
+
+  test "shows the full income history by default and offers financial-month shortcuts", %{
+    conn: conn
+  } do
+    {current_start, _current_end} = Financeiro.MonthPeriod.current_bounds()
+    previous_start = Financeiro.MonthPeriod.previous_start(current_start)
+    older_start = Financeiro.MonthPeriod.previous_start(previous_start)
+
+    income_attrs = %{flow_type: "income", amount_cents: -100_000, source_type: "conta"}
+
+    transaction_fixture(
+      Map.merge(income_attrs, %{occurred_on: current_start, description: "Entrada deste mês"})
+    )
+
+    transaction_fixture(
+      Map.merge(income_attrs, %{
+        occurred_on: previous_start,
+        description: "Entrada do mês anterior"
+      })
+    )
+
+    transaction_fixture(
+      Map.merge(income_attrs, %{occurred_on: older_start, description: "Entrada histórica"})
+    )
+
+    {:ok, view, html} = live(conn, ~p"/income")
+
+    assert html =~ "Entrada deste mês"
+    assert html =~ "Entrada do mês anterior"
+    assert html =~ "Entrada histórica"
+    assert has_element?(view, ".period-quick-filter button.active", "Todo o histórico")
+
+    current_html =
+      view
+      |> element(".period-quick-filter button[phx-value-period=current]")
+      |> render_click()
+
+    assert current_html =~ "Entrada deste mês"
+    refute current_html =~ "Entrada do mês anterior"
+    refute current_html =~ "Entrada histórica"
+
+    previous_html =
+      view
+      |> element(".period-quick-filter button[phx-value-period=previous]")
+      |> render_click()
+
+    refute previous_html =~ "Entrada deste mês"
+    assert previous_html =~ "Entrada do mês anterior"
+    refute previous_html =~ "Entrada histórica"
+  end
+
   test "separates income while refunds reduce the single expense total", %{conn: conn} do
     transaction_fixture()
 

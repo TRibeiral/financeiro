@@ -162,6 +162,11 @@ button, select { cursor: pointer; }
 .summary-strip-three { grid-template-columns: repeat(3, 1fr); }
 .summary-strip-two { grid-template-columns: repeat(2, 1fr); }
 
+.period-quick-filter { max-width: 1420px; margin: 0 auto 9px; display: flex; align-items: center; gap: 5px; }
+.period-quick-filter button { min-height: 31px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; background: white; color: var(--muted); font-size: 10px; font-weight: 700; }
+.period-quick-filter button:hover { border-color: #bdc7c0; color: var(--ink); }
+.period-quick-filter button.active { border-color: var(--forest); background: var(--forest); color: white; }
+
 .filter-panel { max-width: 1420px; margin: 0 auto; padding: 12px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; background: #f1f2ed; border-radius: 11px; }
 .filter-panel select, .filter-panel input { width: 100%; height: 39px; border: 1px solid #dedfd9; border-radius: 7px; outline: none; background: white; color: var(--ink); font-size: 11px; }
 .filter-panel select { padding: 0 26px 0 10px; }
@@ -891,6 +896,8 @@ button, select { cursor: pointer; }
   .summary-strip > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .filter-panel { grid-template-columns: 1fr 1fr; }
   .search-field { grid-column: span 2; }
+  .period-quick-filter { overflow-x: auto; }
+  .period-quick-filter button { flex: 0 0 auto; }
   .transaction-table th:nth-child(1), .transaction-table td:nth-child(1), .transaction-table th:nth-child(4), .transaction-table td:nth-child(4) { display: none; }
   .description-cell { min-width: 180px; }
   .category-grid { grid-template-columns: 1fr 1fr; }

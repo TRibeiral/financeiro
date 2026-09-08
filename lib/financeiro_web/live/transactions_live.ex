@@ -1,29 +1,35 @@
 defmodule FinanceiroWeb.TransactionsLive do
   use FinanceiroWeb, :live_view
   alias Financeiro.Ledger
-  alias Financeiro.MonthPeriod
   alias FinanceiroWeb.Format
+  alias FinanceiroWeb.HistoryPeriod
 
   @impl true
   def mount(_params, _session, socket) do
-    filters =
-      Map.merge(MonthPeriod.filters(), %{
-        "search" => "",
-        "category" => "all",
-        "owner" => "all",
-        "bank" => "all",
-        "origin" => "all",
-        "status" => "all",
-        "direction" => "spending",
-        "sort" => "date_desc"
-      })
+    filters = %{
+      "search" => "",
+      "category" => "all",
+      "owner" => "all",
+      "bank" => "all",
+      "origin" => "all",
+      "status" => "all",
+      "direction" => "spending",
+      "sort" => "date_desc",
+      "from" => "",
+      "to" => ""
+    }
 
-    {:ok, load(socket, filters, MonthPeriod.current_bounds())}
+    {:ok, load(socket, filters)}
   end
 
   @impl true
   def handle_event("filter", %{"filters" => filters}, socket),
-    do: {:noreply, load(socket, filters, socket.assigns.period)}
+    do: {:noreply, load(socket, filters)}
+
+  def handle_event("period", %{"period" => period}, socket) do
+    filters = Map.merge(socket.assigns.filters, HistoryPeriod.filters(period))
+    {:noreply, load(socket, filters)}
+  end
 
   def handle_event("review", %{"id" => id}, socket) do
     transaction = Ledger.get_transaction!(id)
@@ -32,7 +38,7 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, "Categoria confirmada")
-     |> load(socket.assigns.filters, socket.assigns.period)}
+     |> load(socket.assigns.filters)}
   end
 
   def handle_event(
@@ -46,7 +52,7 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, "Categoria alterada para #{category} e salva no banco de dados")
-     |> load(socket.assigns.filters, socket.assigns.period)}
+     |> load(socket.assigns.filters)}
   end
 
   def handle_event("undo_or_reopen", %{"id" => id}, socket) do
@@ -64,7 +70,7 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, message)
-     |> load(socket.assigns.filters, socket.assigns.period)}
+     |> load(socket.assigns.filters)}
   end
 
   def handle_event("undo", _params, socket) do
@@ -73,13 +79,13 @@ defmodule FinanceiroWeb.TransactionsLive do
     {:noreply,
      socket
      |> put_flash(:info, undo_message(count))
-     |> load(socket.assigns.filters, socket.assigns.period)}
+     |> load(socket.assigns.filters)}
   end
 
-  defp load(socket, filters, period) do
+  defp load(socket, filters) do
     assign(socket,
       page_title: "Despesas",
-      period: period,
+      period: HistoryPeriod.selected(filters),
       filters: filters,
       transactions: Ledger.list_transactions(filters),
       totals: Ledger.totals(filters),
@@ -96,9 +102,7 @@ defmodule FinanceiroWeb.TransactionsLive do
       <div class="page-heading">
         <div>
           <p class="eyebrow">
-            Mês financeiro · {Format.short_date(elem(@period, 0))} a {Format.short_date(
-              elem(@period, 1)
-            )}
+            {HistoryPeriod.label(@period)}
           </p>
           <h1>Despesas</h1>
           <p>Compras e estornos, já consolidados no mesmo total.</p>
@@ -118,6 +122,19 @@ defmodule FinanceiroWeb.TransactionsLive do
         <div><span>Lançamentos</span><strong>{@totals.count}</strong></div>
         <div><span>Para revisar</span><strong class="attention">{@totals.pending}</strong></div>
       </section>
+
+      <nav class="period-quick-filter" aria-label="Filtrar despesas por período">
+        <button
+          :for={{value, label} <- HistoryPeriod.options()}
+          type="button"
+          phx-click="period"
+          phx-value-period={value}
+          class={@period.key == value && "active"}
+          aria-pressed={to_string(@period.key == value)}
+        >
+          {label}
+        </button>
+      </nav>
 
       <form phx-change="filter" class="filter-panel">
         <div class="search-field">

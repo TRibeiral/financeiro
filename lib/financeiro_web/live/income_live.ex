@@ -2,30 +2,36 @@ defmodule FinanceiroWeb.IncomeLive do
   use FinanceiroWeb, :live_view
 
   alias Financeiro.Ledger
-  alias Financeiro.MonthPeriod
   alias FinanceiroWeb.Format
+  alias FinanceiroWeb.HistoryPeriod
 
   @impl true
   def mount(_params, _session, socket) do
-    filters =
-      Map.merge(MonthPeriod.filters(), %{
-        "search" => "",
-        "owner" => "all",
-        "bank" => "all",
-        "origin" => "all"
-      })
+    filters = %{
+      "search" => "",
+      "owner" => "all",
+      "bank" => "all",
+      "origin" => "all",
+      "from" => "",
+      "to" => ""
+    }
 
-    {:ok, load(socket, filters, MonthPeriod.current_bounds())}
+    {:ok, load(socket, filters)}
   end
 
   @impl true
   def handle_event("filter", %{"filters" => filters}, socket),
-    do: {:noreply, load(socket, filters, socket.assigns.period)}
+    do: {:noreply, load(socket, filters)}
 
-  defp load(socket, filters, period) do
+  def handle_event("period", %{"period" => period}, socket) do
+    filters = Map.merge(socket.assigns.filters, HistoryPeriod.filters(period))
+    {:noreply, load(socket, filters)}
+  end
+
+  defp load(socket, filters) do
     assign(socket,
       page_title: "Entradas",
-      period: period,
+      period: HistoryPeriod.selected(filters),
       filters: filters,
       transactions: Ledger.list_income(filters),
       totals: Ledger.income_totals(filters),
@@ -41,9 +47,7 @@ defmodule FinanceiroWeb.IncomeLive do
       <div class="page-heading">
         <div>
           <p class="eyebrow">
-            Recebimentos · {Format.short_date(elem(@period, 0))} a {Format.short_date(
-              elem(@period, 1)
-            )}
+            Recebimentos · {HistoryPeriod.label(@period)}
           </p>
           <h1>Entradas</h1>
           <p>Salários e depósitos recebidos, sem categorias de despesa.</p>
@@ -56,6 +60,19 @@ defmodule FinanceiroWeb.IncomeLive do
         </div>
         <div><span>Recebimentos</span><strong>{@totals.count}</strong></div>
       </section>
+
+      <nav class="period-quick-filter" aria-label="Filtrar entradas por período">
+        <button
+          :for={{value, label} <- HistoryPeriod.options()}
+          type="button"
+          phx-click="period"
+          phx-value-period={value}
+          class={@period.key == value && "active"}
+          aria-pressed={to_string(@period.key == value)}
+        >
+          {label}
+        </button>
+      </nav>
 
       <form phx-change="filter" class="filter-panel income-filter-panel">
         <div class="search-field">
