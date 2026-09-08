@@ -205,6 +205,68 @@ defmodule Financeiro.Ledger do
     }
   end
 
+  def spending_periods(today \\ MonthPeriod.current_date()) do
+    current_start = MonthPeriod.period_start(today)
+
+    first_transaction_date =
+      Repo.one(
+        from t in Transaction,
+          where: t.flow_type in ["expense", "refund"],
+          select: min(t.occurred_on)
+      )
+
+    first_start =
+      [
+        current_start,
+        MonthPeriod.history_start(),
+        first_transaction_date && MonthPeriod.period_start(first_transaction_date)
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.min(Date)
+
+    first_start
+    |> MonthPeriod.starts_between(current_start)
+    |> Enum.reverse()
+  end
+
+  def spending_period_summaries([]), do: []
+
+  def spending_period_summaries(period_starts) do
+    first_start = Enum.min(period_starts, Date)
+    last_end = period_starts |> Enum.max(Date) |> MonthPeriod.period_end()
+
+    transactions =
+      Repo.all(
+        from t in Transaction,
+          where:
+            t.flow_type in ["expense", "refund"] and t.occurred_on >= ^first_start and
+              t.occurred_on <= ^last_end,
+          select: {t.occurred_on, t.category, t.amount_cents}
+      )
+      |> Enum.group_by(fn {date, _category, _amount} -> MonthPeriod.period_start(date) end)
+
+    Enum.map(period_starts, fn period_start ->
+      entries = Map.get(transactions, period_start, [])
+      category_totals = period_breakdown(entries)
+
+      %{
+        period_start: period_start,
+        period_end: MonthPeriod.period_end(period_start),
+        expenses: Enum.sum_by(entries, &elem(&1, 2)),
+        category_totals: category_totals,
+        top_category:
+          category_totals
+          |> Enum.max_by(fn {_category, amount} -> amount end, fn -> nil end)
+      }
+    end)
+  end
+
+  defp period_breakdown(entries) do
+    entries
+    |> Enum.group_by(&elem(&1, 1))
+    |> Map.new(fn {label, rows} -> {label, Enum.sum_by(rows, &elem(&1, 2))} end)
+  end
+
   def spending_by(field) when field in [:category, :owner, :bank] do
     {from_date, to_date} = MonthPeriod.current_bounds()
     spending_by(field, from_date, to_date)

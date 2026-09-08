@@ -422,7 +422,7 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     refute has_element?(income_view, "th", "Categoria")
   end
 
-  test "switches from the joined panorama to category-segmented daily rhythm", %{conn: conn} do
+  test "shows the monthly category panorama without a rhythm view", %{conn: conn} do
     transaction_fixture(%{category: "Mercado"})
     transaction_fixture(%{category: "Casa", amount_cents: 1800})
 
@@ -435,14 +435,10 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     {:ok, view, html} = live(conn, ~p"/insights")
     assert html =~ "Realizado e projeção"
     assert has_element?(view, "#forecast-total")
-    refute has_element?(view, "button[phx-value-mode=mapa]")
-    refute has_element?(view, "button[phx-value-mode=projecao]")
-
-    rhythm_html = view |> element("button[phx-value-mode=ritmo]") |> render_click()
-    assert rhythm_html =~ "Ritmo diário"
-    assert has_element?(view, ".day-stack i[data-category=Mercado]")
-    assert has_element?(view, ".day-stack i[data-category=Casa]")
-    assert has_element?(view, ".day-stack i.refund")
+    assert has_element?(view, ".forecast-row[data-category=Mercado]")
+    assert has_element?(view, ".forecast-row[data-category=Casa]")
+    refute has_element?(view, "button[phx-value-mode]")
+    refute html =~ "Ritmo diário"
   end
 
   test "forecasts the current fifth-to-fourth period for every category", %{conn: conn} do
@@ -482,6 +478,121 @@ defmodule FinanceiroWeb.FinanceLiveTest do
     assert length(Regex.scan(~r/class="forecast-row"/, html)) == length(Transaction.categories())
     assert html =~ "--category-color: #16A34A"
     assert html =~ "--category-color: #2563EB"
+  end
+
+  test "selects a completed financial month and compares every month", %{conn: conn} do
+    current_start = Financeiro.MonthPeriod.current_date() |> Financeiro.MonthPeriod.period_start()
+    previous_start = Financeiro.MonthPeriod.previous_start(current_start)
+
+    transaction_fixture(%{
+      occurred_on: current_start,
+      amount_cents: 2_000,
+      category: "Casa",
+      description: "Despesa atual da análise"
+    })
+
+    transaction_fixture(%{
+      occurred_on: previous_start,
+      amount_cents: 5_000,
+      category: "Mercado",
+      description: "Despesa anterior da análise"
+    })
+
+    {:ok, view, _html} = live(conn, ~p"/insights")
+
+    assert has_element?(view, "#insights-period-form option[value='#{current_start}']")
+    assert has_element?(view, "#insights-period-form option[value='#{previous_start}']")
+
+    current_option =
+      view
+      |> element("#insights-period-form option[value='#{current_start}']")
+      |> render()
+
+    assert current_option =~ Integer.to_string(current_start.year)
+    refute current_option =~ FinanceiroWeb.Format.short_date(current_start)
+
+    refute current_option =~
+             FinanceiroWeb.Format.short_date(Financeiro.MonthPeriod.period_end(current_start))
+
+    previous_html =
+      view
+      |> form("#insights-period-form", %{"period" => Date.to_iso8601(previous_start)})
+      |> render_change()
+
+    previous_end = Financeiro.MonthPeriod.period_end(previous_start)
+    assert previous_html =~ "Mês financeiro de #{FinanceiroWeb.Format.short_date(previous_start)}"
+    assert previous_html =~ FinanceiroWeb.Format.short_date(previous_end)
+    assert previous_html =~ "Total do período"
+    assert previous_html =~ "Gastos por categoria"
+    assert has_element?(view, "#forecast-actual", "R$ 50,00")
+    refute previous_html =~ "Realizado até hoje"
+
+    comparison_html =
+      view
+      |> element("button[phx-value-section=comparison]")
+      |> render_click()
+
+    assert comparison_html =~ "Gasto e composição por mês"
+    assert comparison_html =~ "Como cada categoria está evoluindo"
+    assert comparison_html =~ "Mapa de evolução das categorias"
+    assert comparison_html =~ "Compare a evolução de todos os meses financeiros"
+    assert comparison_html =~ "Média mensal comparável"
+    assert comparison_html =~ "Tendência recente"
+    assert comparison_html =~ "Categoria líder"
+    refute comparison_html =~ "Estornos no período"
+    refute comparison_html =~ "Ticket médio"
+    refute comparison_html =~ "Lançamentos"
+    assert has_element?(view, ".month-total-overview", "Totais por mês")
+    assert has_element?(view, "#comparison-total-#{current_start}", "R$ 20,00")
+    assert has_element?(view, "#comparison-total-#{previous_start}", "R$ 50,00")
+    assert has_element?(view, "#comparison-month-#{current_start}", "R$ 150,00")
+    assert has_element?(view, "#comparison-month-#{previous_start}", "R$ 50,00")
+
+    assert has_element?(
+             view,
+             "#comparison-month-#{current_start} .comparison-delta.up",
+             "+200%"
+           )
+
+    casa_card =
+      view
+      |> element(".category-trend-card[data-category=Casa]")
+      |> render()
+
+    assert casa_card =~ "Média mensal"
+    assert casa_card =~ "R$ 10,00"
+    assert casa_card =~ "Mês atual · R$ 20,00"
+    refute casa_card =~ "projeção"
+    assert has_element?(view, ".category-trend-card[data-category=Mercado] svg polyline")
+    assert has_element?(view, "#category-heatmap tr[data-category=Casa]")
+    assert has_element?(view, "#category-heatmap tr[data-category=Mercado]")
+
+    view
+    |> element("button[phx-click=toggle_comparison_category][phx-value-category=Casa]")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-value-category=Casa][aria-pressed=false].inactive"
+           )
+
+    assert has_element?(view, "#comparison-month-#{current_start}", "R$ 0,00")
+    assert has_element?(view, "#comparison-month-#{previous_start}", "R$ 50,00")
+
+    view
+    |> element("button[phx-click=clear_comparison_categories]")
+    |> render_click()
+
+    assert has_element?(view, ".chart-empty-note", "Selecione ao menos uma categoria")
+    assert has_element?(view, "#comparison-month-#{previous_start}", "R$ 0,00")
+
+    view
+    |> element("button[phx-click=select_all_comparison_categories]")
+    |> render_click()
+
+    assert has_element?(view, "#comparison-month-#{current_start}", "R$ 150,00")
+    refute has_element?(view, "#comparison-owners")
+    refute has_element?(view, "#comparison-banks")
   end
 
   defp transaction_fixture(overrides \\ %{}) do
