@@ -281,13 +281,16 @@ defmodule FinanceiroWeb.InsightsLive do
           </div>
           <div class="month-total-list">
             <div
-              :for={row <- @comparison.rows}
+              :for={row <- @comparison.months}
               id={"comparison-total-#{row.period_start}"}
               class={["month-total-item", row.current && "current"]}
             >
-              <span>{month_label(row.period_start)}</span>
+              <div>
+                <span>{month_label(row.period_start)}</span>
+                <em :if={row.current}>Atual</em>
+              </div>
               <strong>{Format.money(row.expenses)}</strong>
-              <small>{if row.current, do: "mês em andamento", else: "mês encerrado"}</small>
+              <small>{if row.current, do: "realizado até agora", else: "valor final"}</small>
             </div>
           </div>
         </article>
@@ -322,9 +325,28 @@ defmodule FinanceiroWeb.InsightsLive do
 
           <div class="category-chart-filters" aria-label="Categorias exibidas no gráfico">
             <div class="category-filter-actions">
-              <span>Exibir categorias</span>
-              <button type="button" phx-click="select_all_comparison_categories">Todas</button>
-              <button type="button" phx-click="clear_comparison_categories">Nenhuma</button>
+              <div>
+                <span>Exibir categorias</span>
+                <strong>
+                  {MapSet.size(@selected_comparison_categories)} de {length(@comparison.categories)} selecionadas
+                </strong>
+              </div>
+              <button
+                type="button"
+                phx-click="select_all_comparison_categories"
+                disabled={
+                  MapSet.size(@selected_comparison_categories) == length(@comparison.categories)
+                }
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                phx-click="clear_comparison_categories"
+                disabled={MapSet.size(@selected_comparison_categories) == 0}
+              >
+                Nenhuma
+              </button>
             </div>
             <div class="category-filter-list">
               <button
@@ -344,6 +366,7 @@ defmodule FinanceiroWeb.InsightsLive do
           <div
             class="monthly-evolution-chart"
             style={"--month-count: #{length(@comparison_chart.months)}"}
+            aria-live="polite"
           >
             <div
               :for={row <- @comparison_chart.months}
@@ -367,7 +390,10 @@ defmodule FinanceiroWeb.InsightsLive do
                   </i>
                 </div>
               </div>
-              <strong>{short_month_label(row.period_start)}</strong>
+              <div class="month-caption">
+                <strong>{short_month_label(row.period_start)}</strong>
+                <em :if={row.current}>Atual</em>
+              </div>
               <small :if={row.current}>
                 projeção das categorias selecionadas
               </small>
@@ -393,14 +419,19 @@ defmodule FinanceiroWeb.InsightsLive do
             >
               <header>
                 <div><i></i><strong>{item.label}</strong></div>
-                <span class={delta_class(item.actual_recent_delta)}>
+                <span
+                  class={delta_class(item.actual_recent_delta)}
+                  title="Mês atual versus mês anterior, usando valores realizados"
+                >
                   {delta_label(item.actual_recent_delta)}
                 </span>
               </header>
               <div class="category-trend-value">
                 <span>Média mensal</span>
                 <strong>{Format.money(item.actual_average)}</strong>
-                <small>Mês atual · {Format.money(item.latest_actual)}</small>
+                <small>
+                  <span>Mês atual</span><strong>{Format.money(item.latest_actual)}</strong>
+                </small>
               </div>
               <svg viewBox="0 0 180 52" role="img" aria-label={"Evolução de #{item.label}"}>
                 <line x1="0" y1="48" x2="180" y2="48"></line>

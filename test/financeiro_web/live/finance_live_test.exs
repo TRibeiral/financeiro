@@ -561,7 +561,8 @@ defmodule FinanceiroWeb.FinanceLiveTest do
 
     assert casa_card =~ "Média mensal"
     assert casa_card =~ "R$ 10,00"
-    assert casa_card =~ "Mês atual · R$ 20,00"
+    assert casa_card =~ "Mês atual"
+    assert casa_card =~ "R$ 20,00"
     refute casa_card =~ "projeção"
     assert has_element?(view, ".category-trend-card[data-category=Mercado] svg polyline")
     assert has_element?(view, "#category-heatmap tr[data-category=Casa]")
